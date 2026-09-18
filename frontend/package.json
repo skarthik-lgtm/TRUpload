@@ -10,10 +10,12 @@
         "preview": "vite preview"
     },
     "dependencies": {
+        "@popperjs/core": "^2.11.8",
         "@vitejs/plugin-react": "latest",
-        "vite": "latest",
+        "bootstrap": "^5.3.8",
         "react": "latest",
-        "react-dom": "latest"
+        "react-dom": "latest",
+        "vite": "latest"
     },
     "devDependencies": {
         "@eslint/js": "latest",
