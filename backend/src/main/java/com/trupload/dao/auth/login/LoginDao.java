@@ -6,5 +6,5 @@ import com.trupload.model.auth.signup.SignupUser;
 
 public interface LoginDao {
 
-    Optional<SignupUser> findByEmail(String email);
+    Optional<SignupUser> findByLoginIdentifier(String identifier);
 }

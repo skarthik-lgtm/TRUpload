@@ -8,7 +8,8 @@ function CreateAccount({ onBackToLogin }) {
 
     async function handleSubmit(event) {
         event.preventDefault()
-        const formData = new FormData(event.currentTarget)
+        const form = event.currentTarget
+        const formData = new FormData(form)
         setMessage('')
         setIsSubmitting(true)
 
@@ -22,7 +23,7 @@ function CreateAccount({ onBackToLogin }) {
                 role: 'USER',
             })
             setMessage(response.message)
-            event.currentTarget.reset()
+            form.reset()
         } catch (requestError) {
             setMessage(requestError.message)
         } finally {

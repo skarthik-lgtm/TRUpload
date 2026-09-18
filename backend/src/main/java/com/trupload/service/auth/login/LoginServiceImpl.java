@@ -28,8 +28,8 @@ public class LoginServiceImpl implements LoginService {
     @Override
     @Transactional
     public LoginResponse login(LoginRequest request) {
-        String email = request.email().toLowerCase(Locale.ROOT);
-        SignupUser user = loginDao.findByEmail(email)
+        String identifier = request.email().trim().toLowerCase(Locale.ROOT);
+        SignupUser user = loginDao.findByLoginIdentifier(identifier)
                 .filter(candidate -> "ACTIVE".equalsIgnoreCase(candidate.getStatus()))
                 .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPassword()))
                 .orElseThrow(() -> new ResponseStatusException(

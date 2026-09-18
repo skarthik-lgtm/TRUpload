@@ -17,11 +17,12 @@ public class LoginDaoImpl implements LoginDao {
     private EntityManager entityManager;
 
     @Override
-    public Optional<SignupUser> findByEmail(String email) {
+    public Optional<SignupUser> findByLoginIdentifier(String identifier) {
         return entityManager.createQuery(
-                        "select user from SignupUser user where lower(user.email) = :email",
+                        "select user from SignupUser user where lower(user.email) = :identifier "
+                                + "or lower(user.username) = :identifier",
                         SignupUser.class)
-                .setParameter("email", email.toLowerCase(Locale.ROOT))
+                .setParameter("identifier", identifier.toLowerCase(Locale.ROOT))
                 .getResultStream()
                 .findFirst();
     }
