@@ -9,4 +9,6 @@ public interface SignupDao {
     boolean existsByUsername(String username);
 
     SignupUser save(SignupUser user);
+
+    void assignRole(Long userId, String roleName);
 }

@@ -4,6 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
 public record SignupRequest(
+        @NotBlank(message = "First name is required")
+        String firstName,
+        @NotBlank(message = "Last name is required")
+        String lastName,
         @NotBlank(message = "Username is required")
         String username,
         @NotBlank(message = "Password is required")

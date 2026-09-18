@@ -10,62 +10,90 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", schema = "app")
 public class SignupUser {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "user_id")
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, length = 100)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 255)
+    @Column(nullable = false, length = 255)
     private String email;
 
-    @Column(nullable = false, length = 255)
-    private String password;
+    @Column(name = "password_hash", nullable = false, length = 255)
+    private String passwordHash;
 
-    @Column(nullable = false, length = 50)
-    private String role;
+    @Column(name = "first_name", length = 100)
+    private String firstName;
+
+    @Column(name = "last_name", length = 100)
+    private String lastName;
 
     @Column(nullable = false)
-    private LocalDateTime createdDate;
+    private String status;
 
-    private LocalDateTime lastLoginDate;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at", nullable = false)
+    private LocalDateTime updatedAt;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
 
     protected SignupUser() {
     }
 
-    public SignupUser(String username, String email, String password, String role, LocalDateTime createdDate) {
+    public SignupUser(String username, String email, String firstName, String lastName,
+            String passwordHash, LocalDateTime createdAt) {
         this.username = username;
         this.email = email;
-        this.password = password;
-        this.role = role;
-        this.createdDate = createdDate;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.passwordHash = passwordHash;
+        this.status = "ACTIVE";
+        this.createdAt = createdAt;
+        this.updatedAt = createdAt;
     }
 
     public String getUsername() {
         return username;
     }
 
+    public Long getId() {
+        return id;
+    }
+
     public String getEmail() {
         return email;
     }
 
-    public String getPassword() {
-        return password;
+    public String email() {
+        return email;
     }
 
-    public String getRole() {
-        return role;
+    public String getPassword() {
+        return passwordHash;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void markLoginNow() {
+        lastLoginAt = LocalDateTime.now();
+        updatedAt = lastLoginAt;
     }
 
     public LocalDateTime getCreatedDate() {
-        return createdDate;
+        return createdAt;
     }
 
     public LocalDateTime getLastLoginDate() {
-        return lastLoginDate;
+        return lastLoginAt;
     }
 }

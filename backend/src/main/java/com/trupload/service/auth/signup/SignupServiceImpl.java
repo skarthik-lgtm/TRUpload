@@ -36,6 +36,8 @@ public class SignupServiceImpl implements SignupService {
     public SignupResponse signup(SignupRequest request) {
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         String username = request.username().trim();
+        String firstName = request.firstName().trim();
+        String lastName = request.lastName().trim();
 
         validateEmail(email);
         if (signupDao.existsByEmail(email)) {
@@ -48,15 +50,18 @@ public class SignupServiceImpl implements SignupService {
         SignupUser user = signupDao.save(new SignupUser(
                 username,
                 email,
+            firstName,
+            lastName,
                 passwordEncoder.encode(request.password()),
-                request.role().trim(),
                 LocalDateTime.now()));
+        String role = request.role().trim().toUpperCase(Locale.ROOT);
+        signupDao.assignRole(user.getId(), role);
 
         return new SignupResponse(
                 "Account created successfully",
                 user.getUsername(),
                 user.getEmail(),
-                user.getRole(),
+            role,
                 user.getCreatedDate());
     }
 

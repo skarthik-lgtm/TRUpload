@@ -1,6 +1,7 @@
 package com.trupload.dao.auth.signup;
 
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.NoResultException;
 import jakarta.persistence.PersistenceContext;
 
 import org.springframework.stereotype.Repository;
@@ -27,6 +28,27 @@ public class SignupDaoImpl implements SignupDao {
     public SignupUser save(SignupUser user) {
         entityManager.persist(user);
         return user;
+    }
+
+    @Override
+    public void assignRole(Long userId, String roleName) {
+        Long roleId;
+        try {
+            roleId = entityManager.createNativeQuery(
+                            "select role_id from app.roles where role_name = :roleName")
+                    .setParameter("roleName", roleName)
+                    .getSingleResult() instanceof Number value
+                    ? value.longValue()
+                    : null;
+        } catch (NoResultException exception) {
+            throw new IllegalArgumentException("Role is not configured: " + roleName, exception);
+        }
+
+        entityManager.createNativeQuery(
+                        "insert into app.user_roles (user_id, role_id) values (:userId, :roleId)")
+                .setParameter("userId", userId)
+                .setParameter("roleId", roleId)
+                .executeUpdate();
     }
 
     private long countBy(String field, String value) {
