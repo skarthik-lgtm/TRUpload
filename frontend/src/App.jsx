@@ -7,6 +7,7 @@ import TRUpload from './TRUpload.jsx'
 function App() {
     const [user, setUser] = useState(null)
     const [page, setPage] = useState(getPageFromHash)
+    const isPreviewMode = new URLSearchParams(window.location.search).get('preview') === 'trupload'
 
     useEffect(() => {
         function handleHashChange() {
@@ -21,6 +22,10 @@ function App() {
         window.location.hash = nextPage === 'login' ? '/login' : `/${nextPage}`
     }
 
+    if (isPreviewMode) {
+        return <TRUpload username="Preview User" onLogout={() => { window.location.href = '/' }} />
+    }
+
     if (user) {
         return <TRUpload username={user} onLogout={() => setUser(null)} />
     }
@@ -33,7 +38,7 @@ function App() {
         return <ForgotPassword onBackToLogin={() => navigate('login')} />
     }
 
-    return <Login onLogin={setUser} onCreateAccount={() => navigate('create-account')} onForgotPassword={() => navigate('forgot-password')} />
+    return <Login onLogin={(response) => setUser(response.email)} onCreateAccount={() => navigate('create-account')} onForgotPassword={() => navigate('forgot-password')} />
 }
 
 function getPageFromHash() {

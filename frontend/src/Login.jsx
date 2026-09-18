@@ -1,12 +1,29 @@
 import { useState } from 'react'
+import { login } from './api.js'
 
 function Login({ onLogin, onCreateAccount, onForgotPassword }) {
     const [showPassword, setShowPassword] = useState(false)
+    const [error, setError] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    function handleSubmit(event) {
+    async function handleSubmit(event) {
         event.preventDefault()
         const formData = new FormData(event.currentTarget)
-        onLogin(formData.get('username'))
+        setError('')
+        setIsSubmitting(true)
+
+        try {
+            const response = await login({
+                email: formData.get('username'),
+                password: formData.get('password'),
+            })
+            console.log('Login successful:', response);
+            onLogin(response)
+        } catch (requestError) {
+            setError(requestError.message)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -32,8 +49,8 @@ function Login({ onLogin, onCreateAccount, onForgotPassword }) {
 
                     <form onSubmit={handleSubmit}>
                         <div className="mb-3">
-                            <label className="form-label" htmlFor="username">Username</label>
-                            <input className="form-control" id="username" name="username" type="text" placeholder="Enter your username" autoComplete="username" required />
+                            <label className="form-label" htmlFor="username">Username or Email Address</label>
+                            <input className="form-control" id="username" name="username" type="text" placeholder="Enter your username or email" autoComplete="username" required />
                         </div>
 
                         <div className="password-label-row mb-2">
@@ -49,7 +66,10 @@ function Login({ onLogin, onCreateAccount, onForgotPassword }) {
                             </button>
                         </div>
 
-                        <button className="submit-button btn w-100" type="submit">Sign in</button>
+                        <button className="submit-button btn w-100" type="submit" disabled={isSubmitting}>
+                            {isSubmitting ? 'Signing in...' : 'Sign in'}
+                        </button>
+                        <p className="form-message" aria-live="polite">{error}</p>
                     </form>
 
                     <div className="signup-prompt">
