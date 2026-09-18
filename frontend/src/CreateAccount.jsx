@@ -1,12 +1,33 @@
 import { useState } from 'react'
+import { signup } from './api.js'
 
 function CreateAccount({ onBackToLogin }) {
     const [showPassword, setShowPassword] = useState(false)
     const [message, setMessage] = useState('')
+    const [isSubmitting, setIsSubmitting] = useState(false)
 
-    function handleSubmit(event) {
+    async function handleSubmit(event) {
         event.preventDefault()
-        setMessage('Account creation is ready to connect to the registration API.')
+        const formData = new FormData(event.currentTarget)
+        setMessage('')
+        setIsSubmitting(true)
+
+        try {
+            const response = await signup({
+                firstName: formData.get('firstName'),
+                lastName: formData.get('lastName'),
+                username: formData.get('username'),
+                email: formData.get('email'),
+                password: formData.get('password'),
+                role: 'USER',
+            })
+            setMessage(response.message)
+            event.currentTarget.reset()
+        } catch (requestError) {
+            setMessage(requestError.message)
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
     return (
@@ -32,8 +53,12 @@ function CreateAccount({ onBackToLogin }) {
 
                         <form onSubmit={handleSubmit}>
                             <div className="mb-3">
-                                <label className="form-label" htmlFor="fullName">Full name</label>
-                                <input className="form-control" id="fullName" name="fullName" type="text" placeholder="Enter your full name" autoComplete="name" required />
+                                <label className="form-label" htmlFor="firstName">First name</label>
+                                <input className="form-control" id="firstName" name="firstName" type="text" placeholder="Enter your first name" autoComplete="given-name" required />
+                            </div>
+                            <div className="mb-3">
+                                <label className="form-label" htmlFor="lastName">Last name</label>
+                                <input className="form-control" id="lastName" name="lastName" type="text" placeholder="Enter your last name" autoComplete="family-name" required />
                             </div>
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="email">Email address</label>
@@ -52,7 +77,9 @@ function CreateAccount({ onBackToLogin }) {
                                     </button>
                                 </div>
                             </div>
-                            <button className="submit-button btn w-100" type="submit">Create account</button>
+                            <button className="submit-button btn w-100" type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? 'Creating account...' : 'Create account'}
+                            </button>
                             <p className="form-message" aria-live="polite">{message}</p>
                         </form>
 
