@@ -65,7 +65,10 @@ body { margin: 0; min-width: 320px; }
 .signup-prompt { display: flex; justify-content: center; gap: 0.3rem; margin-top: 1.5rem; color: #66768a; font-size: 0.82rem; }
 .signup-button { font-weight: 700; }
 
-.upload-page { min-height: 100vh; color: #173e68; background: #f5f9fd; }
+.upload-page { position: relative; min-height: 100vh; overflow: hidden; color: #173e68; background: #f5f9fd url('./images/bg_image.png') center / cover fixed no-repeat; }
+.user-upload-page { background-image: url('./images/user_bg.png'); }
+.upload-page::before { position: absolute; inset: 0; z-index: 0; background: rgba(245,249,253,.10); content: ''; pointer-events: none; }
+.upload-page > * { position: relative; z-index: 1; }
 .upload-header { display: flex; align-items: center; height: 56px; padding: 0 2.1rem; color: #fff; background: #123d67; box-shadow: 0 1px 0 rgba(255,255,255,.12); }
 .upload-brand { padding-right: 1.45rem; border-right: 1px solid rgba(104,204,224,.35); color: #fff; font-size: 1.45rem; font-weight: 900; letter-spacing: -.04em; }
 .upload-brand span { color: #18d8d0; }
@@ -113,12 +116,16 @@ body { margin: 0; min-width: 320px; }
 .billing-count { color: #7896b5; font-size: .7rem; }
 .billing-list { overflow: hidden; border: 1px solid #e0ebf5; border-radius: 7px; color: #2c5682; font-size: .72rem; }
 .billing-list-header { min-height: 31px; color: #194674; background: #edf5fc; font-size: .7rem; font-weight: 800; }
+.billing-select-column { width: 42px; }
+.billing-name-column { min-width: 0; }
+.billing-value-column { text-align: center; }
 .billing-list-row { min-height: 42px; margin: 0; border-top: 1px solid #e6eef6; cursor: pointer; }
 .billing-list-row:hover { background: #f8fbfe; }
 .billing-list input { width: 13px; height: 13px; flex: 0 0 auto; accent-color: #159fa7; cursor: pointer; }
 .folder-icon { display: inline-block; color: #ffb52d; font-size: .95rem; }
 .type-pill { display: inline-block; min-width: 61px; padding: .24rem .65rem; border-radius: 1rem; color: #22609a; background: #dceffc; font-size: .63rem; text-align: center; }
 .type-pill.premium { color: #6241bd; background: #eee0ff; }
+.status-pill { min-width: 76px; padding: .24rem .55rem; border-radius: 1rem; color: #805b16; background: #fff3cd; font-size: .63rem; text-align: center; }
 .empty-state { margin: 0; padding: 2rem; color: #7896b5; text-align: center; }
 .billing-footer { display: flex; align-items: center; justify-content: space-between; padding: .75rem .05rem 0; color: #7896b5; font-size: .68rem; }
 .pagination { display: flex; align-items: center; gap: .45rem; }
@@ -139,6 +146,28 @@ body { margin: 0; min-width: 320px; }
 .admin-action:hover { color: #058e9c; background: #f1fbfc; }
 .admin-action.separated { margin-top: .4rem; padding-top: 1rem; border-top: 1px solid #e2edf5; }
 .toast-message { position: fixed; right: 1.5rem; bottom: 1.5rem; z-index: 10; padding: .85rem 1rem; border-radius: 6px; color: #fff; background: #123d67; box-shadow: 0 8px 20px rgba(18,61,103,.22); font-size: .8rem; }
+.modal-backdrop-custom { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 1rem; background: rgba(15,39,71,.48); }
+.action-modal, .confirmation-modal { width: min(100%, 430px); border-radius: 12px; background: #fff; box-shadow: 0 20px 60px rgba(15,39,71,.25); }
+.action-modal { padding: 1.5rem; }
+.action-modal-header { display: flex; align-items: flex-start; justify-content: space-between; }
+.action-modal-icon { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: 8px; color: #087f89; background: #e4fbfa; }
+.modal-close-button { display: grid; width: 2rem; height: 2rem; place-items: center; border: 0; border-radius: 50%; color: #53749a; background: transparent; cursor: pointer; font-size: 1rem; }
+.modal-close-button:hover { color: #173e68; background: #edf5fc; }
+.action-modal h2, .confirmation-modal h2 { margin: 1rem 0 .4rem; color: #173e68; font-size: 1.25rem; }
+.action-modal p, .confirmation-modal p { margin: 0 0 1.25rem; color: #6b829c; font-size: .82rem; }
+.modal-field-label { display: block; margin-bottom: .4rem; color: #234b77; font-size: .75rem; font-weight: 700; }
+.action-modal .form-control { height: 2.9rem; }
+.action-modal-footer { display: flex; justify-content: flex-end; gap: .6rem; margin-top: 1.25rem; }
+.modal-secondary-button, .modal-primary-button { min-width: 78px; padding: .6rem .9rem; border-radius: 6px; cursor: pointer; font: inherit; font-size: .78rem; font-weight: 700; }
+.modal-secondary-button { border: 1px solid #d1e3f2; color: #235384; background: #fff; }
+.modal-primary-button { border: 1px solid #0aa4a1; color: #fff; background: #0aa4a1; }
+.modal-primary-button:hover { background: #078f8c; }
+.confirmation-backdrop { z-index: 31; }
+.confirmation-modal { padding: 2rem 1.5rem; text-align: center; animation: confirmation-in 160ms ease-out; }
+.confirmation-icon { display: grid; width: 3rem; height: 3rem; margin: 0 auto; place-items: center; border-radius: 50%; color: #fff; background: #0aa4a1; font-size: 1.5rem; font-weight: 800; }
+.confirmation-modal h2 { margin-top: 1rem; }
+.confirmation-modal p { margin-bottom: 0; }
+@keyframes confirmation-in { from { opacity: 0; transform: scale(.96); } to { opacity: 1; transform: scale(1); } }
 
 @media (max-width: 991.98px) {
     .admin-panel { display: none; }

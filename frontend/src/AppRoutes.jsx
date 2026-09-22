@@ -6,7 +6,7 @@ import Login from './Login.jsx'
 import TRUpload from './TRUpload.jsx'
 import { clearAuthToken } from './api.js'
 function AppRoutes() {
-    const [user, setUser] = useState(null)
+    const [user, setUser] = useState(getStoredUser)
     const navigate = useNavigate()
     const location = useLocation()
     const isPreviewMode = new URLSearchParams(window.location.search).get('preview') === 'trupload'
@@ -21,12 +21,15 @@ function AppRoutes() {
 
     function handleLogin(response) {
         const role = Number(response.roleId) === 2 ? 'ADMIN' : 'USER'
-        setUser({ email: response.email, role })
+        const authenticatedUser = { email: response.email, role }
+        window.localStorage.setItem('trupload_user', JSON.stringify(authenticatedUser))
+        setUser(authenticatedUser)
         navigate('/trupload')
     }
 
     function handleLogout() {
-        clearAuthToken();
+        clearAuthToken()
+        window.localStorage.removeItem('trupload_user')
         setUser(null)
         navigate('/login')
     }
@@ -57,6 +60,22 @@ function AppRoutes() {
 
 function NotFound() {
     return <main><h1>Page not found</h1></main>
+}
+
+function getStoredUser() {
+    const token = window.localStorage.getItem('trupload_token')
+    const storedUser = window.localStorage.getItem('trupload_user')
+
+    if (!token || !storedUser) {
+        return null
+    }
+
+    try {
+        return JSON.parse(storedUser)
+    } catch {
+        window.localStorage.removeItem('trupload_user')
+        return null
+    }
 }
 
 export default AppRoutes
