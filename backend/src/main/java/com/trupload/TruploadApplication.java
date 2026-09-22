@@ -4,9 +4,9 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class TRUploadApplication { 
+public class TruploadApplication { 
 
     public static void main(String[] args) {
-        SpringApplication.run(TRUploadApplication.class, args);
+        SpringApplication.run(TruploadApplication.class, args);
     }
 }
