@@ -13,16 +13,19 @@ import com.trupload.dao.auth.login.LoginDao;
 import com.trupload.model.auth.login.LoginRequest;
 import com.trupload.model.auth.login.LoginResponse;
 import com.trupload.model.auth.signup.SignupUser;
+import com.trupload.security.JwtService;
 
 @Service
 public class LoginServiceImpl implements LoginService {
 
     private final LoginDao loginDao;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public LoginServiceImpl(LoginDao loginDao, PasswordEncoder passwordEncoder) {
+    public LoginServiceImpl(LoginDao loginDao, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.loginDao = loginDao;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     @Override
@@ -36,6 +39,6 @@ public class LoginServiceImpl implements LoginService {
                         HttpStatus.UNAUTHORIZED, "Email or password is incorrect"));
         user.markLoginNow();
 
-        return new LoginResponse("Login successful", user.email());
+        return new LoginResponse("Login successful", user.email(), jwtService.generateToken(user));
     }
 }
