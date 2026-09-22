@@ -1,11 +1,13 @@
 import { useState } from 'react'
 
 function ForgotPassword({ onBackToLogin }) {
+    const [email, setEmail] = useState('')
     const [message, setMessage] = useState('')
 
     function handleSubmit(event) {
         event.preventDefault()
         setMessage('If an account exists for this email, reset instructions will be sent shortly.')
+        setEmail('')
     }
 
     return (
@@ -32,7 +34,7 @@ function ForgotPassword({ onBackToLogin }) {
                         <form onSubmit={handleSubmit}>
                             <div className="mb-3">
                                 <label className="form-label" htmlFor="email">Email address</label>
-                                <input className="form-control" id="email" name="email" type="email" placeholder="you@example.com" autoComplete="email" required />
+                                <input className="form-control" id="email" name="email" type="email" placeholder="you@example.com" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
                             </div>
                             <button className="submit-button btn w-100" type="submit">Send reset instructions</button>
                             <p className="form-message" aria-live="polite">{message}</p>

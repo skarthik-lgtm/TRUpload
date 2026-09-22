@@ -1,10 +1,19 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faChevronDown, faChevronLeft, faChevronRight, faCircleUser, faCloudArrowUp, faCloud, faFolder, faGear, faHouse, faSearch, faServer, faTableList, faXmark } from '@fortawesome/free-solid-svg-icons'
 
-function TRUpload({ username, onLogout }) {
+function TRUpload({ username, role, onLogout }) {
     const [search, setSearch] = useState('')
     const [page, setPage] = useState(1)
     const [selected, setSelected] = useState([])
     const [notice, setNotice] = useState('')
+    const [isProfileOpen, setIsProfileOpen] = useState(false)
+    const profileMenuRef = useRef(null)
+    const normalizedRole = String(role).toUpperCase()
+    const isAdmin = normalizedRole === 'ADMIN'
+    const menuItems = isAdmin
+        ? ['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Audit Logs', 'About']
+        : ['Audit Logs', 'About']
     const pageSize = 10
     const billingGroups = useMemo(() => Array.from({ length: 35 }, (_, index) => {
         const number = String(92112 + index * 120).padStart(6, '0')
@@ -15,6 +24,27 @@ function TRUpload({ username, onLogout }) {
     const currentPage = Math.min(page, pageCount)
     const visibleGroups = filteredGroups.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     const allVisibleSelected = visibleGroups.length > 0 && visibleGroups.every((group) => selected.includes(group.id))
+
+    useEffect(() => {
+        function closeProfileMenu(event) {
+            if (!profileMenuRef.current?.contains(event.target)) {
+                setIsProfileOpen(false)
+            }
+        }
+
+        function closeOnEscape(event) {
+            if (event.key === 'Escape') {
+                setIsProfileOpen(false)
+            }
+        }
+
+        document.addEventListener('mousedown', closeProfileMenu)
+        document.addEventListener('keydown', closeOnEscape)
+        return () => {
+            document.removeEventListener('mousedown', closeProfileMenu)
+            document.removeEventListener('keydown', closeOnEscape)
+        }
+    }, [])
 
     function updateSearch(value) { setSearch(value); setPage(1) }
     function toggleGroup(id) { setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
@@ -31,48 +61,58 @@ function TRUpload({ username, onLogout }) {
         <main className="upload-page">
             <header className="upload-header d-flex align-items-center">
                 <div className="upload-brand">TR<span>UPLOAD</span></div>
-                <div className="upload-nav"><span className="nav-home">⌂</span><span>TR Upload</span></div>
-                <div className="account-controls d-flex align-items-center ms-auto">
+                <div className="upload-nav"><FontAwesomeIcon className="nav-home" icon={faHouse} /><span>TR Upload</span></div>
+                <div className="account-controls d-flex align-items-center ms-auto" ref={profileMenuRef}>
                     <span className="environment-pill"><i /> DEV</span>
-                    <span className="user-avatar">{username?.charAt(0).toUpperCase() || 'U'}</span>
-                    <button className="user-menu" type="button" onClick={onLogout}>{username || 'User'} <span>⌄</span></button>
+                    <button
+                        className="profile-toggle"
+                        type="button"
+                        onClick={() => setIsProfileOpen((open) => !open)}
+                        aria-expanded={isProfileOpen}
+                        aria-haspopup="menu"
+                        aria-label={`${username || 'User'} profile menu`}
+                        title={username || 'User'}
+                    >
+                        <FontAwesomeIcon className="user-avatar" icon={faCircleUser} />
+                        <FontAwesomeIcon className="profile-chevron" icon={faChevronDown} />
+                    </button>
+                    {isProfileOpen && <div className="profile-dropdown" role="menu">
+                        <div className="profile-role" role="presentation">{isAdmin ? 'Admin' : 'User'}</div>
+                        {menuItems.map((item) => <button className="profile-action" type="button" role="menuitem" key={item} onClick={() => { showNotice(`${item} selected.`); setIsProfileOpen(false) }}>{item}</button>)}
+                        <button className="profile-action profile-logout" type="button" role="menuitem" onClick={onLogout}>Logout</button>
+                    </div>}
                 </div>
             </header>
             <div className="upload-layout container-fluid row g-4">
-                <section className="upload-content col-lg-8 col-xl-9">
+                <section className={`upload-content ${isAdmin ? 'col-lg-8 col-xl-9' : 'col-12'}`}>
                     <div className="workspace-heading d-flex align-items-center">
-                        <div className="cloud-icon">☁</div>
+                        <div className="cloud-icon"><FontAwesomeIcon icon={faCloud} /></div>
                         <div><h1>TR Upload</h1><p>Select a source database and choose the billing group(s) to upload.</p></div>
                     </div>
                     <div className="workspace-toolbar d-flex flex-wrap align-items-end gap-3">
                         <label className="source-select"><span>Source Database</span><select defaultValue="CSTRMS" aria-label="Source database"><option>CSTRMS</option><option>Production</option><option>Archive</option></select></label>
-                        <label className="billing-search"><span>⌕</span><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search billing group name or number..." aria-label="Search billing groups" />{search && <button type="button" onClick={() => updateSearch('')} aria-label="Clear search">×</button>}</label>
-                        <button className="upload-action" type="button" onClick={uploadSelected}><span>☁</span> Upload Selected Billings</button>
+                        <label className="billing-search"><FontAwesomeIcon icon={faSearch} /><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search billing group name or number..." aria-label="Search billing groups" />{search && <button type="button" onClick={() => updateSearch('')} aria-label="Clear search"><FontAwesomeIcon icon={faXmark} /></button>}</label>
+                        <button className="upload-action" type="button" onClick={uploadSelected}><FontAwesomeIcon icon={faCloudArrowUp} /> Upload Selected Billings</button>
                     </div>
                     <section className="billing-panel">
-                        <div className="billing-heading d-flex align-items-center justify-content-between"><h2><span>▤</span> Active Billings</h2><span className="billing-count">{selected.length} selected</span></div>
-                        <div className="billing-table-wrap">
-                            <table className="billing-table">
-                                <thead>
-                                    <tr>
-                                        <th className="col-1 text-start" style={{"lineHeight":"35px"}}><input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleGroups} aria-label="Select visible billing groups" style={{"lineHeight": '1.5'}}/></th>
-                                        <th className="col-5 text-start" style={{"lineHeight":"35px"}}>Billing Group Name</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {visibleGroups.map((group) => 
-                                    <tr key={group.id}>
-                                        <td className="col-1 text-start" style={{"lineHeight":"35px"}}><input type="checkbox" checked={selected.includes(group.id)} onChange={() => toggleGroup(group.id)} aria-label={`Select ${group.name}`} style={{"lineHeight": '35px !important'}} /></td>
-                                        <td className="col-5 text-start"><span className="folder-icon">■</span><strong>{group.name}</strong></td>
-                                    </tr>)}
-                                </tbody>
-                            </table>
+                        <div className="billing-heading d-flex align-items-center justify-content-between"><h2><FontAwesomeIcon icon={faTableList} /> Active Billings</h2><span className="billing-count">{selected.length} selected</span></div>
+                        <div className="billing-list">
+                            <div className="billing-list-header d-flex align-items-center gap-3 px-3 py-2">
+                                <input type="checkbox" checked={allVisibleSelected} onChange={toggleVisibleGroups} aria-label="Select visible billing groups" />
+                                <span>Billing Group Name</span>
+                            </div>
+                            {visibleGroups.map((group) => <label className="billing-list-row d-flex align-items-center gap-3 px-3 py-2" key={group.id}>
+                                <input type="checkbox" checked={selected.includes(group.id)} onChange={() => toggleGroup(group.id)} aria-label={`Select ${group.name}`} />
+                                <span className="folder-icon"><FontAwesomeIcon icon={faFolder} /></span>
+                                <strong>{group.name}</strong>
+                                <span className={`type-pill ms-auto ${group.type === 'Premium' ? 'premium' : ''}`}>{group.type}</span>
+                            </label>)}
                             {!visibleGroups.length && <p className="empty-state">No billing groups match your search.</p>}
                         </div>
-                        <div className="billing-footer d-flex align-items-center justify-content-between"><span>Showing {visibleGroups.length ? (currentPage - 1) * pageSize + 1 : 0}-{Math.min(currentPage * pageSize, filteredGroups.length)} of {filteredGroups.length} billing groups</span><div className="pagination d-flex align-items-center gap-2" aria-label="Billing group pages"><button type="button" onClick={() => changePage(currentPage - 1)} disabled={currentPage === 1} aria-label="Previous page">‹</button>{Array.from({ length: pageCount }, (_, index) => index + 1).slice(0, 4).map((number) => <button className={number === currentPage ? 'active' : ''} type="button" key={number} onClick={() => changePage(number)}>{number}</button>)}<button type="button" onClick={() => changePage(currentPage + 1)} disabled={currentPage === pageCount} aria-label="Next page">›</button></div></div>
+                        <div className="billing-footer d-flex align-items-center justify-content-between"><span>Showing {visibleGroups.length ? (currentPage - 1) * pageSize + 1 : 0}-{Math.min(currentPage * pageSize, filteredGroups.length)} of {filteredGroups.length} billing groups</span><div className="pagination d-flex align-items-center gap-2" aria-label="Billing group pages"><button type="button" onClick={() => changePage(currentPage - 1)} disabled={currentPage === 1} aria-label="Previous page"><FontAwesomeIcon icon={faChevronLeft} /></button>{Array.from({ length: pageCount }, (_, index) => index + 1).slice(0, 4).map((number) => <button className={number === currentPage ? 'active' : ''} type="button" key={number} onClick={() => changePage(number)}>{number}</button>)}<button type="button" onClick={() => changePage(currentPage + 1)} disabled={currentPage === pageCount} aria-label="Next page"><FontAwesomeIcon icon={faChevronRight} /></button></div></div>
                     </section>
                 </section>
-                <aside className="admin-panel col-lg-4 col-xl-3"><button className="settings-button" type="button" aria-label="Settings">⚙</button><div className="admin-menu"><button className="admin-menu-title" type="button"><span>♙</span> Admin Functions <b>⌃</b></button>{['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Commands', 'View Logs', 'Admin'].map((action, index) => <button className={index === 4 ? 'admin-action separated' : 'admin-action'} type="button" key={action} onClick={() => showNotice(`${action} selected.`)}><span>{['▣', '⤢', '☁', '▣', '▤', '♙'][index]}</span>{action}<b>›</b></button>)}</div></aside>
+                {/* {isAdmin && <aside className="admin-panel col-lg-4 col-xl-3"><button className="settings-button" type="button" aria-label="Settings"><FontAwesomeIcon icon={faGear} /></button><div className="admin-menu"><button className="admin-menu-title" type="button"><FontAwesomeIcon icon={faServer} /> Admin Functions <b><FontAwesomeIcon icon={faChevronDown} /></b></button>{['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Commands', 'View Logs', 'Admin'].map((action) => <button className="admin-action" type="button" key={action} onClick={() => showNotice(`${action} selected.`)}><FontAwesomeIcon icon={faServer} />{action}<b><FontAwesomeIcon icon={faChevronRight} /></b></button>)}</div></aside>} */}
             </div>
             {notice && <div className="toast-message" role="status">{notice}</div>}
         </main>

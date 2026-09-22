@@ -1,7 +1,9 @@
 async function request(path, options = {}) {
+    const token = window.localStorage.getItem('trupload_token')
     const response = await fetch(path, {
         headers: {
             'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...options.headers,
         },
         ...options,
@@ -23,6 +25,11 @@ export function login(credentials) {
     })
 }
 
+export function clearAuthToken() {
+
+    window.localStorage.removeItem('trupload_token')
+
+}
 
 export function signup(account) {
     return request('/api/auth/signup', {

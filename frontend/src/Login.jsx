@@ -17,8 +17,11 @@ function Login({ onLogin, onCreateAccount, onForgotPassword }) {
                 email: formData.get('username'),
                 password: formData.get('password'),
             })
-            console.log('Login successful:', response);
-            onLogin(response)
+            console.log('Login response:', response);
+            window.localStorage.setItem('trupload_token', response.token);
+            onLogin(response);
+
+            event.currentTarget.reset()
         } catch (requestError) {
             setError(requestError.message)
         } finally {

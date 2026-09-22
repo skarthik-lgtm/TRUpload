@@ -74,9 +74,16 @@ body { margin: 0; min-width: 320px; }
 .account-controls { display: flex; align-items: center; gap: .7rem; margin-left: auto; font-size: .78rem; }
 .environment-pill { display: flex; align-items: center; gap: .5rem; padding: .38rem 1rem; border: 1px solid #1bd7d2; border-radius: 2rem; font-weight: 700; }
 .environment-pill i { width: .5rem; height: .5rem; border-radius: 50%; background: #1bd7d2; }
-.user-avatar { display: grid; width: 1.85rem; height: 1.85rem; place-items: center; border-radius: 50%; color: #fff; background: #8ba7c3; font-size: .7rem; font-weight: 800; }
-.user-menu { padding: 0; border: 0; color: #fff; background: transparent; cursor: pointer; font: inherit; font-weight: 700; }
-.user-menu span { margin-left: .4rem; font-size: 1rem; }
+.user-avatar { width: 1.85rem; height: 1.85rem; color: #b8c9d9; font-size: 1.85rem; }
+.profile-toggle { display: flex; align-items: center; gap: .45rem; padding: 0; border: 0; color: #fff; background: transparent; cursor: pointer; font: inherit; font-weight: 700; }
+.profile-chevron { font-size: 1rem; transition: transform 160ms ease; }
+.profile-toggle[aria-expanded="true"] .profile-chevron { transform: rotate(180deg); }
+.profile-dropdown { position: absolute; top: calc(100% + .65rem); right: 0; z-index: 20; min-width: 190px; overflow: hidden; border: 1px solid #d9e8f4; border-radius: 8px; background: #fff; box-shadow: 0 10px 24px rgba(22,62,104,.2); }
+.account-controls { position: relative; }
+.profile-role { padding: .8rem 1rem; border-bottom: 1px solid #e2edf5; color: #173e68; font-size: .75rem; font-weight: 800; }
+.profile-action { display: block; width: 100%; padding: .7rem 1rem; border: 0; color: #234b77; background: #fff; cursor: pointer; font: inherit; font-size: .74rem; text-align: left; }
+.profile-action:hover { color: #058e9c; background: #f1fbfc; }
+.profile-logout { border-top: 1px solid #e2edf5; color: #b42318; font-weight: 700; }
 .upload-layout { width: 100%; max-width: 1280px; margin-right: 0; margin-left: 0; padding: 1.35rem 1.6rem 3rem; }
 .upload-content, .admin-panel { min-width: 0; text-align: left; }
 .workspace-heading { display: flex; align-items: center; gap: .85rem; margin: .1rem 0 1.15rem; }
@@ -92,28 +99,24 @@ body { margin: 0; min-width: 320px; }
 .source-select select, .billing-search { width: 100%; height: 48px; border: 1px solid #d1e3f2; border-radius: 7px; color: #214b76; background: #fff; box-shadow: 0 2px 8px rgba(26,72,115,.03); }
 .source-select select { padding: 0 1rem; outline: 0; font: inherit; font-size: .8rem; font-weight: 700; }
 .billing-search { display: flex; align-items: center; padding: 0 .75rem; }
-.billing-search > span { margin-right: .7rem; font-size: 1.6rem; line-height: 0; }
+.billing-search > svg { margin-right: .7rem; font-size: 1rem; }
 .billing-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: #1a4b7d; font: inherit; font-size: .75rem; }
 .billing-search input::placeholder { color: #8fa9c5; }
 .billing-search button { border: 0; color: #235384; background: transparent; cursor: pointer; font-size: 1.4rem; }
 .upload-action { height: 48px; padding: 0 1.25rem; border: 0; border-radius: 7px; color: #fff; background: #0aa4a1; box-shadow: 0 5px 12px rgba(10,164,161,.18); cursor: pointer; font: inherit; font-size: .75rem; font-weight: 800; white-space: nowrap; }
 .upload-action:hover { background: #078f8c; }
-.upload-action span { margin-right: .6rem; font-size: 1.35rem; vertical-align: -2px; }
+.upload-action svg { margin-right: .6rem; }
 .billing-panel { padding: .65rem .75rem .7rem; border: 1px solid #d9e8f4; border-radius: 8px; background: #fff; box-shadow: 0 11px 28px rgba(25,77,124,.06); }
 .billing-heading { display: flex; align-items: center; justify-content: space-between; padding: 0 .35rem .55rem; }
 .billing-heading h2 { margin: 0; color: #194674; font-size: 1rem; }
-.billing-heading h2 span { margin-right: .6rem; font-size: 1.1rem; }
+.billing-heading h2 svg { margin-right: .6rem; color: #0a8f99; }
 .billing-count { color: #7896b5; font-size: .7rem; }
-.billing-table-wrap { overflow: hidden; border: 1px solid #e0ebf5; border-radius: 7px; }
-.billing-table { width: 100%; border-collapse: collapse; color: #2c5682; font-size: .72rem; }
-.billing-table thead tr, .billing-table tbody tr { display: flex; flex-wrap: wrap; width: 100%; }
-.billing-table th, .billing-table td { display: block; }
-.billing-table th { height: 31px; color: #194674; background: #edf5fc; font-size: .7rem; font-weight: 800; text-align: left; }
-.billing-table th, .billing-table td { padding: 0 .5rem; }
-.billing-table td { height: 29px; border-top: 1px solid #e6eef6; }
-.billing-table tbody tr:hover { background: #f8fbfe; }
-.billing-table input { width: 13px; height: 13px; accent-color: #159fa7; cursor: pointer; }
-.folder-icon { display: inline-block; margin-right: .85rem; color: #ffb52d; font-size: 1rem; transform: scaleX(1.15); }
+.billing-list { overflow: hidden; border: 1px solid #e0ebf5; border-radius: 7px; color: #2c5682; font-size: .72rem; }
+.billing-list-header { min-height: 31px; color: #194674; background: #edf5fc; font-size: .7rem; font-weight: 800; }
+.billing-list-row { min-height: 42px; margin: 0; border-top: 1px solid #e6eef6; cursor: pointer; }
+.billing-list-row:hover { background: #f8fbfe; }
+.billing-list input { width: 13px; height: 13px; flex: 0 0 auto; accent-color: #159fa7; cursor: pointer; }
+.folder-icon { display: inline-block; color: #ffb52d; font-size: .95rem; }
 .type-pill { display: inline-block; min-width: 61px; padding: .24rem .65rem; border-radius: 1rem; color: #22609a; background: #dceffc; font-size: .63rem; text-align: center; }
 .type-pill.premium { color: #6241bd; background: #eee0ff; }
 .empty-state { margin: 0; padding: 2rem; color: #7896b5; text-align: center; }
@@ -128,10 +131,10 @@ body { margin: 0; min-width: 320px; }
 .admin-menu { overflow: hidden; border-radius: 9px; background: #fff; box-shadow: 0 8px 20px rgba(30,72,111,.13); }
 .admin-menu button { display: flex; align-items: center; width: 100%; border: 0; color: #234b77; background: #fff; cursor: pointer; font: inherit; text-align: left; }
 .admin-menu-title { gap: .65rem; padding: 1rem .9rem .8rem; font-size: .8rem; font-weight: 800; }
-.admin-menu-title span { font-size: 1.25rem; }
+.admin-menu-title > svg { font-size: 1rem; }
 .admin-menu-title b { margin-left: auto; }
 .admin-action { gap: .85rem; padding: .75rem 1rem; font-size: .74rem; }
-.admin-action span { width: 1rem; color: #164e83; font-size: 1.2rem; text-align: center; }
+.admin-action > svg { width: 1rem; color: #164e83; font-size: 1rem; text-align: center; }
 .admin-action b { margin-left: auto; font-size: 1.2rem; font-weight: 400; }
 .admin-action:hover { color: #058e9c; background: #f1fbfc; }
 .admin-action.separated { margin-top: .4rem; padding-top: 1rem; border-top: 1px solid #e2edf5; }
@@ -144,10 +147,9 @@ body { margin: 0; min-width: 320px; }
     .upload-header { padding: 0 1rem; }
     .upload-brand { padding-right: .8rem; font-size: 1.1rem; }
     .upload-nav { margin-left: .5rem; padding: 0 .5rem; }
-    .environment-pill, .user-menu { display: none; }
+    .environment-pill, .profile-name { display: none; }
     .upload-layout { padding: 1rem .75rem 2rem; }
     .workspace-toolbar > * { flex: 1 1 100%; }
-    .billing-table th:nth-child(3), .billing-table td:nth-child(3) { display: block; }
     .billing-footer { align-items: flex-start; flex-direction: column; gap: .7rem; }
 }
 
