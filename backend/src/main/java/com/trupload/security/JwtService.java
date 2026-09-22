@@ -34,14 +34,20 @@ public class JwtService {
     }
 
     public String generateToken(SignupUser user) {
+        return generateToken(user, null);
+    }
+
+    public String generateToken(SignupUser user, Long roleId) {
         Date issuedAt = new Date();
-        return Jwts.builder()
+        var tokenBuilder = Jwts.builder()
                 .subject(user.getEmail())
                 .claim("role", "USER")
                 .issuedAt(issuedAt)
-                .expiration(new Date(issuedAt.getTime() + expirationMs))
-                .signWith(signingKey)
-                .compact();
+                .expiration(new Date(issuedAt.getTime() + expirationMs));
+        if (roleId != null) {
+            tokenBuilder.claim("roleId", roleId);
+        }
+        return tokenBuilder.signWith(signingKey).compact();
     }
 
     public String extractSubject(String token) {

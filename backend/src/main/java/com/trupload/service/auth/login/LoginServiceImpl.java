@@ -38,7 +38,14 @@ public class LoginServiceImpl implements LoginService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Email or password is incorrect"));
         user.markLoginNow();
+        Long roleId = loginDao.findRoleIdByUserId(user.getId())
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.FORBIDDEN, "No role is assigned to this user"));
 
-        return new LoginResponse("Login successful", user.email(), jwtService.generateToken(user));
+        return new LoginResponse(
+            "Login successful",
+            user.email(),
+            roleId,
+            jwtService.generateToken(user, roleId));
     }
 }

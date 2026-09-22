@@ -1,6 +1,7 @@
 package com.trupload.dao.auth.login;
 
 import java.util.Locale;
+import java.util.List;
 import java.util.Optional;
 
 import jakarta.persistence.EntityManager;
@@ -25,5 +26,21 @@ public class LoginDaoImpl implements LoginDao {
                 .setParameter("identifier", identifier.toLowerCase(Locale.ROOT))
                 .getResultStream()
                 .findFirst();
+    }
+
+    @Override
+    public Optional<Long> findRoleIdByUserId(Long userId) {
+        List<?> results = entityManager.createNativeQuery(
+                        "select role_id from app.user_roles where user_id = :userId order by role_id")
+                .setParameter("userId", userId)
+                .getResultList();
+        if (results.isEmpty()) {
+            return Optional.empty();
+        }
+        Object result = results.get(0);
+        if (!(result instanceof Number roleId)) {
+            throw new IllegalStateException("Invalid role ID returned for user: " + userId);
+        }
+        return Optional.of(roleId.longValue());
     }
 }
