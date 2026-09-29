@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 @Configuration
 public class SqlServerConfig {
 
-    @Bean
+    @Bean(name = "sqlServerJdbcTemplate")
     JdbcTemplate sqlServerJdbcTemplate(
             @Value("${app.sqlserver.url}") String url,
             @Value("${app.sqlserver.username}") String username,
