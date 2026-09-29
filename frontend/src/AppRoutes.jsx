@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import AuditLogs from './AuditLogs.jsx'
 import CreateAccount from './CreateAccount.jsx'
 import ForgotPassword from './ForgotPassword.jsx'
 import Login from './Login.jsx'
@@ -53,6 +54,9 @@ function AppRoutes() {
                 path="/trupload"
                 element={user ? <TRUpload username={user.email} role={user.role} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
             />
+            <Route path="/audit-logs" element={user ? <AuditLogs username={user.email} role={user.role} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
+            <Route path="/trupload/*" element={<NotFound />} />
+            <Route path="/audit-logs/*" element={<NotFound />} />
             <Route path="*" element={<NotFound />} />
         </Routes>
     )

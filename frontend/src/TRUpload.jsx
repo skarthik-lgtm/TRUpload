@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faChevronDown, faChevronLeft, faChevronRight, faCircleUser, faCloudArrowUp, faCloud, faFile, faFolder, faHouse, faSearch, faTableList, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { faCheck, faChevronDown, faChevronLeft, faChevronRight, faCircleUser, faCloudArrowUp, faCloud, faFile, faFlagCheckered, faFolder, faHouse, faNetworkWired, faSearch, faServer, faSpinner, faTableList, faXmark } from '@fortawesome/free-solid-svg-icons'
+import { useNavigate } from 'react-router-dom'
+const uploadStages = [
+    { label: 'Validation', icon: faCheck },
+    { label: 'File Generation', icon: faCheck },
+    { label: 'Processing Files', icon: faFile },
+    { label: 'Mainframe Transfer', icon: faServer },
+    { label: 'Downstream Systems', icon: faNetworkWired },
+    { label: 'Complete', icon: faFlagCheckered },
+]
 
 function TRUpload({ username, role, onLogout }) {
     const [search, setSearch] = useState('')
@@ -11,6 +20,9 @@ function TRUpload({ username, role, onLogout }) {
     const [isRteModalOpen, setIsRteModalOpen] = useState(false)
     const [rteFileName, setRteFileName] = useState('')
     const [isRteConfirmationOpen, setIsRteConfirmationOpen] = useState(false)
+    const [isUploadProgressOpen, setIsUploadProgressOpen] = useState(false)
+    const [uploadStage, setUploadStage] = useState(2)
+    const [isUploadSuccessOpen, setIsUploadSuccessOpen] = useState(false)
     const profileMenuRef = useRef(null)
     const normalizedRole = String(role).toUpperCase()
     const isAdmin = normalizedRole === 'ADMIN'
@@ -27,7 +39,7 @@ function TRUpload({ username, role, onLogout }) {
     const currentPage = Math.min(page, pageCount)
     const visibleGroups = filteredGroups.slice((currentPage - 1) * pageSize, currentPage * pageSize)
     const allVisibleSelected = visibleGroups.length > 0 && visibleGroups.every((group) => selected.includes(group.id))
-
+    const navigate = useNavigate()
     useEffect(() => {
         function closeProfileMenu(event) {
             if (!profileMenuRef.current?.contains(event.target)) {
@@ -49,6 +61,25 @@ function TRUpload({ username, role, onLogout }) {
         }
     }, [])
 
+    useEffect(() => {
+        if (!isUploadProgressOpen) {
+            return undefined
+        }
+
+        if (uploadStage < uploadStages.length - 1) {
+            const timer = window.setTimeout(() => setUploadStage((stage) => stage + 1), 1400)
+            return () => window.clearTimeout(timer)
+        }
+
+        const timer = window.setTimeout(() => {
+            setIsUploadProgressOpen(false)
+            setIsUploadSuccessOpen(true)
+            setSelected([])
+            window.setTimeout(() => setIsUploadSuccessOpen(false), 1800)
+        }, 700)
+        return () => window.clearTimeout(timer)
+    }, [isUploadProgressOpen, uploadStage])
+
     function updateSearch(value) { setSearch(value); setPage(1) }
     function toggleGroup(id) { setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
     function toggleVisibleGroups() {
@@ -57,13 +88,25 @@ function TRUpload({ username, role, onLogout }) {
             : [...new Set([...current, ...visibleGroups.map((group) => group.id)])])
     }
     function showNotice(message) { setNotice(message); window.setTimeout(() => setNotice(''), 3000) }
-    function uploadSelected() { showNotice(selected.length ? `${selected.length} billing group${selected.length === 1 ? '' : 's'} queued for upload.` : 'Select at least one billing group to upload.') }
+    function uploadSelected() {
+        if (!selected.length) {
+            showNotice('Select at least one billing group to upload.')
+            return
+        }
+
+        setUploadStage(2)
+        setIsUploadProgressOpen(true)
+    }
     function changePage(nextPage) { setPage(Math.min(Math.max(nextPage, 1), pageCount)); setSelected([]) }
     function handleMenuItem(item) {
         setIsProfileOpen(false)
         if (item === 'Make RTE File') {
             setRteFileName('')
             setIsRteModalOpen(true)
+            return
+        }
+        if (item === 'Audit Logs') {
+            navigate('/audit-logs')
             return
         }
         showNotice(`${item} selected.`)
@@ -138,6 +181,30 @@ function TRUpload({ username, role, onLogout }) {
                 {/* {isAdmin && <aside className="admin-panel col-lg-4 col-xl-3"><button className="settings-button" type="button" aria-label="Settings"><FontAwesomeIcon icon={faGear} /></button><div className="admin-menu"><button className="admin-menu-title" type="button"><FontAwesomeIcon icon={faServer} /> Admin Functions <b><FontAwesomeIcon icon={faChevronDown} /></b></button>{['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Commands', 'View Logs', 'Admin'].map((action) => <button className="admin-action" type="button" key={action} onClick={() => showNotice(`${action} selected.`)}><FontAwesomeIcon icon={faServer} />{action}<b><FontAwesomeIcon icon={faChevronRight} /></b></button>)}</div></aside>} */}
             </div>
             {notice && <div className="toast-message" role="status">{notice}</div>}
+            {isUploadProgressOpen && <div className="upload-progress-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-progress-title">
+                <section className="upload-progress-modal">
+                    <h2 id="upload-progress-title">Uploading selected billings</h2>
+                    <div className="upload-stage-track">
+                        {uploadStages.map((stage, index) => {
+                            const isComplete = index < uploadStage
+                            const isCurrent = index === uploadStage
+                            return <div className={`upload-stage ${isComplete ? 'complete' : ''} ${isCurrent ? 'current' : ''}`} key={stage.label}>
+                                <div className="upload-stage-node"><FontAwesomeIcon icon={stage.icon} /></div>
+                                <strong>{stage.label}</strong>
+                                <span>{isComplete ? 'Completed' : isCurrent ? 'In Progress' : 'Pending'}</span>
+                            </div>
+                        })}
+                    </div>
+                    <div className="upload-progress-message"><FontAwesomeIcon icon={faSpinner} spin /><span>Please keep this page open. We&apos;ll notify you when it&apos;s complete.</span></div>
+                </section>
+            </div>}
+            {isUploadSuccessOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-success-title">
+                <section className="upload-success-modal">
+                    <div className="upload-success-icon"><FontAwesomeIcon icon={faCheck} /></div>
+                    <h2 id="upload-success-title">Uploaded successfully</h2>
+                    <p>The selected billing groups have been uploaded successfully.</p>
+                </section>
+            </div>}
             {isRteModalOpen && <div className="modal-backdrop-custom" role="presentation">
                 <section className="action-modal" role="dialog" aria-modal="true" aria-labelledby="rte-modal-title">
                     <div className="action-modal-header">
