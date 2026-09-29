@@ -1,8 +1,13 @@
 package com.trupload.service.database;
-import org.springframework.beans.factory.annotation.Qualifier;
 import java.util.ArrayList;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
 import java.util.List;
 
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -11,6 +16,7 @@ import com.trupload.api.database.DatabaseInstanceResponse;
 @Service
 public class DatabaseInstanceService {
 
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseInstanceService.class);
     private final JdbcTemplate sqlServerJdbcTemplate;
 
    public DatabaseInstanceService(
@@ -58,18 +64,35 @@ public class DatabaseInstanceService {
                     databaseName
             );
 
-            List<String> groupIds = sqlServerJdbcTemplate.query(
+                try {
+                List<String> groupIds = sqlServerJdbcTemplate.query(
                     groupIdQuery,
                     (resultSet, rowNumber) -> resultSet.getString("GroupID")
-            );
+                );
 
-            response.add(
-                    new DatabaseInstanceResponse(
-                            databaseName,
-                            groupIds
-                    )
-            );
+                response.add(new DatabaseInstanceResponse(databaseName, groupIds));
+                } catch (DataAccessException exception) {
+                logger.warn("Skipping SQL Server database {} because it could not be queried: {}",
+                    databaseName, exception.getMostSpecificCause().getMessage());
+                }
         }
         return response;
+    }
+
+    // Test SQL Server connection on application startup
+    // public List<DatabaseInstanceResponse> findInstances() {
+    //     String serverName = sqlServerJdbcTemplate.queryForObject("SELECT @@SERVERNAME", String.class);
+    //     logger.info("Connected to SQL Server: {}", serverName);
+    //     return List.of();
+    // }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void checkSqlServerConnectionOnStartup() {
+        try {
+            String serverName = sqlServerJdbcTemplate.queryForObject("SELECT @@SERVERNAME", String.class);
+            logger.info("SQL Server connection successful. Connected server: {}", serverName);
+        } catch (DataAccessException exception) {
+            logger.error("SQL Server connection failed. Verify the SQLSERVER_HOST, SQLSERVER_PORT, SQLSERVER_USERNAME, SQLSERVER_PASSWORD, network access, and SQL Server availability.", exception);
+        }
     }
 }
