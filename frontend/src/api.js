@@ -25,10 +25,14 @@ export function login(credentials) {
     })
 }
 
+export function getDatabaseInstances() {
+    return request('/api/database/instances')
+}
+
 export function clearAuthToken() {
-
     window.localStorage.removeItem('trupload_token')
-
+    window.localStorage.removeItem('trupload_user')
+    window.localStorage.removeItem('trupload_last_activity')
 }
 
 export function signup(account) {

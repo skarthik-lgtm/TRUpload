@@ -1,5 +1,7 @@
 package com.trupload.config;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -30,8 +32,16 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/health", "/api/auth/login", "/api/auth/signup").permitAll()
+                    .requestMatchers("/api/database/instances").hasRole("ADMIN")
                         .requestMatchers("/api/auth/logout").authenticated()
                         .anyRequest().authenticated())
+                .exceptionHandling(exceptions -> exceptions
+                    .accessDeniedHandler((request, response, exception) -> {
+                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                        response.setContentType("application/json");
+                        response.getWriter().write(
+                            "{\"message\":\"Admin role required to access database instances.\"}");
+                    }))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

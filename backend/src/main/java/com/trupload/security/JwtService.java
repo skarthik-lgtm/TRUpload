@@ -41,7 +41,7 @@ public class JwtService {
         Date issuedAt = new Date();
         var tokenBuilder = Jwts.builder()
                 .subject(user.getEmail())
-                .claim("role", "USER")
+            .claim("role", Long.valueOf(2).equals(roleId) ? "ADMIN" : "USER")
                 .issuedAt(issuedAt)
                 .expiration(new Date(issuedAt.getTime() + expirationMs));
         if (roleId != null) {
@@ -52,6 +52,11 @@ public class JwtService {
 
     public String extractSubject(String token) {
         return parseClaims(token).getSubject();
+    }
+
+    public Long extractRoleId(String token) {
+        Object roleId = parseClaims(token).get("roleId");
+        return roleId instanceof Number number ? number.longValue() : null;
     }
 
     public boolean isValid(String token) {

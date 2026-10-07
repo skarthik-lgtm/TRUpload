@@ -43,8 +43,7 @@ public class DatabaseInstanceService {
 
         List<DatabaseInstanceResponse> response = new ArrayList<>();
 
-        // Step 2:
-        // For every CSTR database, get GroupIDs from dbo.Route.
+        // Step 2: For every CSTR database, get GroupIDs from dbo.Route.
         for (String databaseName : databaseNames) {
 
             // Database names come directly from sys.databases,
@@ -55,15 +54,16 @@ public class DatabaseInstanceService {
 
             String groupIdQuery = String.format(
                     """
-                    SELECT GroupID
+                    SELECT DISTINCT GroupID
                     FROM [%s].[dbo].[Route]
                     WHERE GroupID IS NOT NULL
-                      AND LOWER(RTRIM(GroupID)) NOT LIKE '%%wave'
+                    AND LOWER(RTRIM(GroupID)) NOT LIKE '%%%%wave'
+                    -- Chars 1-4 are digits, Char 5 is alpha/character, Chars 6-7 are digits
+                    AND GroupID LIKE '[0-9][0-9][0-9][0-9][A-Za-z][0-9][0-9]%%%%'
                     ORDER BY GroupID
                     """,
                     databaseName
             );
-
                 try {
                 List<String> groupIds = sqlServerJdbcTemplate.query(
                     groupIdQuery,

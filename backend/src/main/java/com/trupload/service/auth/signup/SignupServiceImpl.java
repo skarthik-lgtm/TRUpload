@@ -54,7 +54,7 @@ public class SignupServiceImpl implements SignupService {
             lastName,
                 passwordEncoder.encode(request.password()),
                 LocalDateTime.now()));
-        String role = request.role().trim().toUpperCase(Locale.ROOT);
+        String role = "USER";
         signupDao.assignRole(user.getId(), role);
 
         return new SignupResponse(
