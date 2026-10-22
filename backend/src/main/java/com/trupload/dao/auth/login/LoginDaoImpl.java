@@ -20,9 +20,9 @@ public class LoginDaoImpl implements LoginDao {
     @Override
     public Optional<SignupUser> findByLoginIdentifier(String identifier) {
         return entityManager.createQuery(
-                        "select user from SignupUser user where lower(user.email) = :identifier "
-                                + "or lower(user.username) = :identifier",
-                        SignupUser.class)
+                "select user from SignupUser user where lower(trim(user.email)) = :identifier "
+                        + "or lower(trim(user.username)) = :identifier",
+                SignupUser.class)
                 .setParameter("identifier", identifier.toLowerCase(Locale.ROOT))
                 .getResultStream()
                 .findFirst();
@@ -31,7 +31,7 @@ public class LoginDaoImpl implements LoginDao {
     @Override
     public Optional<Long> findRoleIdByUserId(Long userId) {
         List<?> results = entityManager.createNativeQuery(
-                        "select role_id from app.user_roles where user_id = :userId order by role_id")
+                "select role_id from app.user_roles where user_id = :userId order by role_id")
                 .setParameter("userId", userId)
                 .getResultList();
         if (results.isEmpty()) {

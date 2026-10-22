@@ -1,8 +1,10 @@
 package com.trupload.api.database;
+
 import java.util.List;
-import java.time.OffsetDateTime;
+import java.time.Instant;
 
 public record DatabaseInstanceResponse(
-        String database,
-        List<String> groupIds) {
-}
+    String databaseName,
+    List<RouteGroupResponse> routeGroups,
+    Instant lastCheckDateTime
+) {}

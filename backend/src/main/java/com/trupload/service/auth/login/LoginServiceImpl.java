@@ -33,19 +33,27 @@ public class LoginServiceImpl implements LoginService {
     public LoginResponse login(LoginRequest request) {
         String identifier = request.email().trim().toLowerCase(Locale.ROOT);
         SignupUser user = loginDao.findByLoginIdentifier(identifier)
-                .filter(candidate -> "ACTIVE".equalsIgnoreCase(candidate.getStatus()))
-                .filter(candidate -> passwordEncoder.matches(request.password(), candidate.getPassword()))
                 .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED, "Email or password is incorrect"));
+                        HttpStatus.UNAUTHORIZED, "Login account not found"));
+
+        if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "Login account is not active");
+        }
+
+        if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+            throw new ResponseStatusException(
+                    HttpStatus.UNAUTHORIZED, "Password verification failed");
+        }
         user.markLoginNow();
         Long roleId = loginDao.findRoleIdByUserId(user.getId())
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.FORBIDDEN, "No role is assigned to this user"));
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "No role is assigned to this user"));
 
         return new LoginResponse(
-            "Login successful",
-            user.email(),
-            roleId,
-            jwtService.generateToken(user, roleId));
+                "Login successful",
+                user.email(),
+                roleId,
+                jwtService.generateToken(user, roleId));
     }
 }

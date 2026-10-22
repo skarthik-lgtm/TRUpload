@@ -41,3 +41,14 @@ export function signup(account) {
         body: JSON.stringify(account),
     })
 }
+
+export function uploadBillingGroups(selections) {
+    return request('/api/uploads', {
+        method: 'POST',
+        body: JSON.stringify({ selections }),
+    })
+}
+
+export function getFailedUploads() {
+    return request('/api/uploads/failed')
+}

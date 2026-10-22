@@ -8,7 +8,8 @@ import TRUpload from './TRUpload.jsx'
 import { clearAuthToken } from './api.js'
 import AccountAccessStagingArea from './AccountAccessStagingArea.jsx'
 
-const SESSION_IDLE_TIMEOUT_MS = 15 * 60 * 1000
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000
+const ACTIVITY_STORAGE_THROTTLE_MS = 30 * 1000
 
 function AppRoutes() {
     const [user, setUser] = useState(getStoredUser)
@@ -22,6 +23,8 @@ function AppRoutes() {
         }
 
         let idleTimer
+        let lastActivityAt = Number(window.localStorage.getItem('trupload_last_activity')) || Date.now()
+        let lastPersistedActivityAt = lastActivityAt
 
         function expireSession() {
             clearAuthToken()
@@ -31,10 +34,9 @@ function AppRoutes() {
 
         function scheduleExpiry() {
             window.clearTimeout(idleTimer)
-            const lastActivity = Number(window.localStorage.getItem('trupload_last_activity'))
-            const remainingTime = SESSION_IDLE_TIMEOUT_MS - (Date.now() - lastActivity)
+            const remainingTime = SESSION_IDLE_TIMEOUT_MS - (Date.now() - lastActivityAt)
 
-            if (!lastActivity || remainingTime <= 0) {
+            if (remainingTime <= 0) {
                 expireSession()
                 return
             }
@@ -43,12 +45,18 @@ function AppRoutes() {
         }
 
         function recordActivity() {
-            window.localStorage.setItem('trupload_last_activity', String(Date.now()))
+            lastActivityAt = Date.now()
+            if (lastActivityAt - lastPersistedActivityAt >= ACTIVITY_STORAGE_THROTTLE_MS) {
+                window.localStorage.setItem('trupload_last_activity', String(lastActivityAt))
+                lastPersistedActivityAt = lastActivityAt
+            }
             scheduleExpiry()
         }
 
         function handleStorageChange(event) {
             if (event.key === 'trupload_last_activity') {
+                lastActivityAt = Math.max(lastActivityAt, Number(event.newValue) || 0)
+                lastPersistedActivityAt = Math.max(lastPersistedActivityAt, lastActivityAt)
                 scheduleExpiry()
             } else if (event.key === 'trupload_token' && !event.newValue) {
                 setUser(null)
@@ -56,7 +64,7 @@ function AppRoutes() {
             }
         }
 
-        const activityEvents = ['pointerdown', 'keydown', 'touchstart', 'scroll']
+        const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll']
         activityEvents.forEach((eventName) => window.addEventListener(eventName, recordActivity, { passive: true }))
         window.addEventListener('storage', handleStorageChange)
         scheduleExpiry()
