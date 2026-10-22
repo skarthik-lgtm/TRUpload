@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faChevronDown, faChevronLeft, faChevronRight, faCircleUser, faCloudArrowUp, faCloud, faFile, faFolder, faHouse, faSearch, faSpinner, faTableList, faTriangleExclamation, faXmark, faUndo } from '@fortawesome/free-solid-svg-icons'
 import { useNavigate } from 'react-router-dom'
-import { getDatabaseInstances, getFailedUploads, uploadBillingGroups } from './api.js'
+import { getDatabaseInstances, getFailedUploads, getSuccessfulUploads, uploadBillingGroups } from './api.js'
 const uploadStages = [{ label: 'Validation', icon: faSpinner }]
 
 function formatDispatchDates(routes) {
@@ -38,6 +38,10 @@ function TRUpload({ username, role, onLogout }) {
     const [failedRecords, setFailedRecords] = useState([])
     const [isLoadingFailures, setIsLoadingFailures] = useState(false)
     const [failuresError, setFailuresError] = useState('')
+    const [isSuccessfulView, setIsSuccessfulView] = useState(false)
+    const [successfulRecords, setSuccessfulRecords] = useState([])
+    const [isLoadingSuccessful, setIsLoadingSuccessful] = useState(false)
+    const [successfulError, setSuccessfulError] = useState('')
     const profileMenuRef = useRef(null)
     const normalizedRole = String(role).toUpperCase()
     const isAdmin = normalizedRole === 'ADMIN'
@@ -153,9 +157,17 @@ function TRUpload({ username, role, onLogout }) {
         try {
             const result = await uploadBillingGroups(selectedGroups.map(({ databaseName, groupId }) => ({ databaseName, routeGroupId: groupId })))
             setUploadResult(result)
-            const processedIds = new Set(selectedGroups.map((group) => group.id))
-            setBillingGroups((current) => current.filter((group) => !processedIds.has(group.id)))
-            setSelected([])
+            const successfulIds = new Set(selectedGroups
+                .filter((group) => {
+                    const groupResults = (result.results ?? []).filter((record) =>
+                        record.databaseName === group.databaseName
+                        && record.routeGroupId.replace(/wave$/i, '') === group.groupId.replace(/wave$/i, ''))
+                    return groupResults.length > 0
+                        && groupResults.every((record) => record.status === 'UPLOADED')
+                })
+                .map((group) => group.id))
+            setBillingGroups((current) => current.filter((group) => !successfulIds.has(group.id)))
+            setSelected((current) => current.filter((id) => !successfulIds.has(id)))
             setIsUploadProgressOpen(false)
             setIsUploadSuccessOpen(true)
         } catch (error) {
@@ -166,6 +178,7 @@ function TRUpload({ username, role, onLogout }) {
 
     async function openFailedRecords() {
         setIsFailedView(true)
+        setIsSuccessfulView(false)
         setIsLoadingFailures(true)
         setFailuresError('')
         try {
@@ -175,6 +188,21 @@ function TRUpload({ username, role, onLogout }) {
             setFailuresError(error.message || 'Could not load failed upload records.')
         } finally {
             setIsLoadingFailures(false)
+        }
+    }
+
+    async function openSuccessfulRecords() {
+        setIsSuccessfulView(true)
+        setIsFailedView(false)
+        setIsLoadingSuccessful(true)
+        setSuccessfulError('')
+        try {
+            const records = await getSuccessfulUploads()
+            setSuccessfulRecords(Array.isArray(records) ? records : [])
+        } catch (error) {
+            setSuccessfulError(error.message || 'Could not load uploaded records.')
+        } finally {
+            setIsLoadingSuccessful(false)
         }
     }
 
@@ -268,11 +296,12 @@ function TRUpload({ username, role, onLogout }) {
                     </div>
                     <section className="billing-panel">
                         <div className="billing-heading d-flex align-items-center justify-content-between">
-                            <div className="billing-heading-title"><h2><FontAwesomeIcon icon={isFailedView ? faTriangleExclamation : faTableList} /> {isFailedView ? 'Upload Failed Records' : 'Active Billings'}</h2></div>
+                            <div className="billing-heading-title"><h2><FontAwesomeIcon icon={isFailedView ? faTriangleExclamation : faTableList} /> {isFailedView ? 'Upload Failed Records' : isSuccessfulView ? 'Uploaded Records' : 'Active Billings'}</h2></div>
                             <div className="billing-heading-actions">
-                                <button className={!isFailedView ? 'selected' : ''} type="button" onClick={() => setIsFailedView(false)}>Active Billings</button>
+                                <button className={!isFailedView && !isSuccessfulView ? 'selected' : ''} type="button" onClick={() => { setIsFailedView(false); setIsSuccessfulView(false) }}>Active Billings</button>
+                                <button className={isSuccessfulView ? 'selected' : ''} type="button" onClick={openSuccessfulRecords}>Uploaded Records</button>
                                 <button className={isFailedView ? 'selected' : ''} type="button" onClick={openFailedRecords}>Upload Failed Records</button>
-                                {!isFailedView && <span className="billing-count">{selected.length} selected</span>}
+                                {!isFailedView && !isSuccessfulView && <span className="billing-count">{selected.length} selected</span>}
                             </div>
                         </div>
                         {isFailedView ? <div className="failed-records-list">
@@ -285,6 +314,19 @@ function TRUpload({ username, role, onLogout }) {
                                     <td>{record.databaseName}</td><td>{record.routeGroupId}</td><td>{record.routeId || '—'}</td>
                                     <td>{record.dispatchDate || '—'}</td><td>{record.failureReason}</td>
                                     <td>{record.attemptedAt ? new Date(record.attemptedAt).toLocaleString() : '—'}</td>
+                                </tr>)}</tbody>
+                            </table></div>}
+                        </div> : isSuccessfulView ? <div className="failed-records-list">
+                            {isLoadingSuccessful && <p className="empty-state"><FontAwesomeIcon icon={faSpinner} spin /> Loading uploaded records...</p>}
+                            {!isLoadingSuccessful && successfulError && <div className="empty-state api-error-state"><p>{successfulError}</p><button type="button" onClick={openSuccessfulRecords}>Retry</button></div>}
+                            {!isLoadingSuccessful && !successfulError && !successfulRecords.length && <p className="empty-state">No successful upload records.</p>}
+                            {!isLoadingSuccessful && !successfulError && successfulRecords.length > 0 && <div className="failed-records-table-wrap"><table className="failed-records-table">
+                                <thead><tr><th>Database</th><th>Group ID</th><th>Route ID</th><th>Dispatch date</th><th>Uploaded at</th><th>Uploaded by</th><th>Warnings</th></tr></thead>
+                                <tbody>{successfulRecords.map((record) => <tr key={record.id}>
+                                    <td>{record.databaseName}</td><td>{record.routeGroupId}</td><td>{record.routeId || '—'}</td>
+                                    <td>{record.dispatchDate || '—'}</td>
+                                    <td>{record.uploadedAt ? new Date(record.uploadedAt).toLocaleString() : '—'}</td>
+                                    <td>{record.uploadedBy || '—'}</td><td>{record.warnings || '—'}</td>
                                 </tr>)}</tbody>
                             </table></div>}
                         </div> : <>
@@ -352,8 +394,8 @@ function TRUpload({ username, role, onLogout }) {
             {isUploadSuccessOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-success-title">
                 <section className="upload-success-modal">
                     <div className="upload-success-icon"><FontAwesomeIcon icon={faCheck} /></div>
-                    <h2 id="upload-success-title">Validation complete</h2>
-                    <p>{uploadResult?.uploadedCount ?? 0} route record(s) uploaded; {uploadResult?.failedCount ?? 0} failed. Failed records are available in Upload Failed Records.</p>
+                    <h2 id="upload-success-title">Upload complete</h2>
+                    <p>{uploadResult?.uploadedCount ?? 0} route record(s) uploaded; {uploadResult?.failedCount ?? 0} failed. Successful groups were removed from the list; failed groups remain available to retry.</p>
                     <div className="action-modal-footer">
                         {uploadResult?.failedCount > 0 && <button className="modal-secondary-button" type="button" onClick={() => { closeUploadResult(); openFailedRecords() }}>View failed records</button>}
                         <button className="modal-primary-button" type="button" onClick={closeUploadResult}>OK</button>

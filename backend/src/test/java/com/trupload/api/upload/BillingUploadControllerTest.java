@@ -9,6 +9,8 @@ import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -53,6 +55,18 @@ class BillingUploadControllerTest {
 
         assertEquals(expected, controller.upload(request, authentication));
         verify(service).upload(request, "user@example.com", "USER");
+    }
+
+    @Test
+    void returnsSuccessfulUploadHistory() {
+        List<SuccessfulUploadRecord> expected = List.of(new SuccessfulUploadRecord(
+                7L, "CSTRMT_QA", "1016I09wave", "469323",
+                LocalDate.of(2012, 10, 18), LocalDateTime.of(2026, 10, 22, 10, 8, 52),
+                "admin@example.com", null));
+        when(service.findRecentSuccessfulUploads()).thenReturn(expected);
+
+        assertEquals(expected, controller.getSuccessfulUploads());
+        verify(service).findRecentSuccessfulUploads();
     }
 
     private Authentication authenticated(String username, String authority) {

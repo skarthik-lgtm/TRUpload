@@ -47,4 +47,9 @@ public class BillingUploadController {
     public List<FailedUploadRecord> getFailedUploads() {
         return billingUploadService.findRecentFailures();
     }
+
+    @GetMapping("/successful")
+    public List<SuccessfulUploadRecord> getSuccessfulUploads() {
+        return billingUploadService.findRecentSuccessfulUploads();
+    }
 }

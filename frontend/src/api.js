@@ -52,3 +52,7 @@ export function uploadBillingGroups(selections) {
 export function getFailedUploads() {
     return request('/api/uploads/failed')
 }
+
+export function getSuccessfulUploads() {
+    return request('/api/uploads/successful')
+}
