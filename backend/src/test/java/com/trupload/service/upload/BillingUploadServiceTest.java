@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -54,6 +55,10 @@ class BillingUploadServiceTest {
         @BeforeEach
         void setUp() {
                 service = new BillingUploadService(jdbcTemplate, transactionService, databaseInstanceService);
+                lenient().when(jdbcTemplate.queryForObject(
+                                contains("SELECT CASE WHEN EXISTS"), eq(Integer.class),
+                                any(), any(), any()))
+                                .thenReturn(0);
         }
 
         @Test
@@ -102,6 +107,36 @@ class BillingUploadServiceTest {
                 verify(jdbcTemplate, times(1)).queryForObject(
                                 contains("INSERT INTO [TRUpload].[dbo].[UploadGroupResult]"),
                                 eq(Long.class), any(), any(), any());
+        }
+
+        @Test
+        void rejectsPreviouslyUploadedGroupBeforeLookingUpSourceRoutes() {
+                when(jdbcTemplate.queryForObject(
+                                contains("SELECT CASE WHEN EXISTS"), eq(Integer.class),
+                                eq("CSTRAB"), eq("0216Y16"), eq("0216Y16wave")))
+                                .thenReturn(1);
+                when(jdbcTemplate.queryForObject(contains("OUTPUT INSERTED.UploadGroupResultId"),
+                                eq(Long.class), any(), any(), any()))
+                                .thenReturn(401L);
+
+                var response = service.upload(request("CSTRAB", "0216Y16"), "user@example.com", "USER");
+
+                assertEquals(0, response.uploadedCount());
+                assertEquals(1, response.failedCount());
+                assertEquals(1, response.results().size());
+                assertEquals("0216Y16", response.results().get(0).routeGroupId());
+                assertEquals("FAILED", response.results().get(0).status());
+                assertEquals("This billing group has already been uploaded.",
+                                response.results().get(0).reasons().get(0));
+
+                verify(jdbcTemplate).queryForObject(
+                                contains("SELECT CASE WHEN EXISTS"), eq(Integer.class),
+                                eq("CSTRAB"), eq("0216Y16"), eq("0216Y16wave"));
+                verify(jdbcTemplate, org.mockito.Mockito.never()).query(
+                                anyString(),
+                                ArgumentMatchers.<RowMapper<BillingUploadService.RouteRecord>>any(),
+                                ArgumentMatchers.<Object[]>any());
+                verifyNoInteractions(transactionService);
         }
 
         @Test

@@ -147,6 +147,35 @@ public class BillingUploadService {
                                                 Long.class, batchId, databaseName, routeGroupId);
                                 activeGroupResultId = groupResultId;
 
+                                if (groupExistsInUploadedTable(databaseName, routeGroupId)) {
+                                        String reason = "This billing group has already been uploaded.";
+
+                                        saveFailure(
+                                                        databaseName, routeGroupId, null, null,
+                                                        reason, uploadedBy, groupResultId,
+                                                        null, true, false, false, shuttle);
+
+                                        sqlServerJdbcTemplate.update("""
+                                                        UPDATE [TRUpload].[dbo].[UploadGroupResult]
+                                                        SET Status = 'FAILED',
+                                                                CompletedAt = SYSUTCDATETIME(),
+                                                                RouteCount = 0,
+                                                                UploadedRouteCount = 0,
+                                                                FailedRouteCount = 0,
+                                                                SummaryMessage = ?
+                                                        WHERE UploadGroupResultId = ?
+                                                        """,
+                                                        reason, groupResultId);
+
+                                        results.add(new UploadRecordResult(
+                                                        databaseName, routeGroupId, null, null,
+                                                        "FAILED", List.of(reason), shuttle));
+
+                                        failedCount++;
+                                        activeGroupResultId = 0;
+                                        continue;
+                                }
+
                                 List<RouteRecord> routes = findRoutes(databaseName, routeGroupId);
 
                                 // No routes were found: record a group-level failure.
@@ -550,6 +579,22 @@ public class BillingUploadService {
                 return routeGroupId.toLowerCase(Locale.ROOT).endsWith("wave")
                                 ? routeGroupId
                                 : routeGroupId + "wave";
+        }
+
+        private boolean groupExistsInUploadedTable(String databaseName, String routeGroupId) {
+                String baseRouteGroupId = routeGroupId.replaceFirst("(?i)wave$", "");
+                Integer exists = sqlServerJdbcTemplate.queryForObject(
+                                """
+                                                SELECT CASE WHEN EXISTS (
+                                                    SELECT 1
+                                                    FROM [TRUpload].[dbo].[UploadedBilling]
+                                                    WHERE DatabaseName = ?
+                                                      AND LOWER(RTRIM(RouteGroupId)) IN (LOWER(?), LOWER(?))
+                                                ) THEN 1 ELSE 0 END
+                                                """,
+                                Integer.class,
+                                databaseName, baseRouteGroupId, baseRouteGroupId + "wave");
+                return Integer.valueOf(1).equals(exists);
         }
 
         private boolean existsInUploadedTable(BillingDuplicateKey duplicateKey) {
