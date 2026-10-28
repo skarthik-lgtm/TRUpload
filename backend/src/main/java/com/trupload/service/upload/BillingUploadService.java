@@ -501,13 +501,18 @@ public class BillingUploadService {
         }
 
         public List<FailedUploadRecord> findRecentFailures() {
+                return findRecentFailures(null, true);
+        }
+
+        public List<FailedUploadRecord> findRecentFailures(String username, boolean admin) {
                 return sqlServerJdbcTemplate.query("""
                                 SELECT TOP (1000)
                                     UploadFailedBillingId, DatabaseName, RouteGroupId, RouteId,
                                     DispatchDate, FailureReason, AttemptedAt, AttemptedBy
                                 FROM [TRUpload].[dbo].[UploadFailedBilling]
+                                                                WHERE (? = 1 OR AttemptedBy = ?)
                                 ORDER BY AttemptedAt DESC, UploadFailedBillingId DESC
-                                """, (rs, rowNum) -> {
+                                                                """, (rs, rowNum) -> {
                         java.sql.Date dispatchDate = rs.getDate("DispatchDate");
                         Timestamp attemptedAt = rs.getTimestamp("AttemptedAt");
                         return new FailedUploadRecord(
@@ -519,15 +524,20 @@ public class BillingUploadService {
                                         rs.getString("FailureReason"),
                                         attemptedAt == null ? null : attemptedAt.toLocalDateTime(),
                                         rs.getString("AttemptedBy"));
-                });
+                }, admin ? 1 : 0, username);
         }
 
         public List<SuccessfulUploadRecord> findRecentSuccessfulUploads() {
+                return findRecentSuccessfulUploads(null, true);
+        }
+
+        public List<SuccessfulUploadRecord> findRecentSuccessfulUploads(String username, boolean admin) {
                 return sqlServerJdbcTemplate.query("""
                                 SELECT TOP (1000)
                                     UploadedBillingId, DatabaseName, RouteGroupId, RouteId,
                                     DispatchDate, UploadedAt, UploadedBy, Warnings
                                 FROM [TRUpload].[dbo].[UploadedBilling]
+                                WHERE (? = 1 OR UploadedBy = ?)
                                 ORDER BY UploadedAt DESC, UploadedBillingId DESC
                                 """, (rs, rowNum) -> {
                         java.sql.Date dispatchDate = rs.getDate("DispatchDate");
@@ -541,7 +551,7 @@ public class BillingUploadService {
                                         uploadedAt == null ? null : uploadedAt.toLocalDateTime(),
                                         rs.getString("UploadedBy"),
                                         rs.getString("Warnings"));
-                });
+                }, admin ? 1 : 0, username);
         }
 
         private List<RouteRecord> findRoutes(String databaseName, String routeGroupId) {

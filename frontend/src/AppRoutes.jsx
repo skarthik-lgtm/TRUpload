@@ -6,7 +6,8 @@ import ForgotPassword from './ForgotPassword.jsx'
 import Login from './Login.jsx'
 import TRUpload from './TRUpload.jsx'
 import { clearAuthToken } from './api.js'
-import AccountAccessStagingArea from './AccountAccessStagingArea.jsx'
+import AccountRequests from './AccountRequests.jsx'
+import WarehouseAccess from './WarehouseAccess.jsx'
 
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 const ACTIVITY_STORAGE_THROTTLE_MS = 30 * 1000
@@ -85,7 +86,7 @@ function AppRoutes() {
     }
 
     function handleLogin(response) {
-        const role = Number(response.roleId) === 2 ? 'ADMIN' : 'USER'
+        const role = String(response.role || 'USER').toUpperCase()
         const authenticatedUser = { email: response.email, role }
         window.localStorage.setItem('trupload_user', JSON.stringify(authenticatedUser))
         window.localStorage.setItem('trupload_last_activity', String(Date.now()))
@@ -120,7 +121,11 @@ function AppRoutes() {
             />
             <Route
                 path="/admin/account-requests"
-                element={<AccountAccessStagingArea />}
+                element={user?.role === 'ADMIN' ? <AccountRequests /> : <Navigate to={user ? '/trupload' : '/login'} replace />}
+            />
+            <Route
+                path="/account/warehouse-access"
+                element={user ? <WarehouseAccess /> : <Navigate to="/login" replace />}
             />
             <Route path="/audit-logs" element={user ? <AuditLogs username={user.email} role={user.role} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
             <Route path="/trupload/*" element={<NotFound />} />

@@ -46,8 +46,8 @@ function TRUpload({ username, role, onLogout }) {
     const normalizedRole = String(role).toUpperCase()
     const isAdmin = normalizedRole === 'ADMIN'
     const menuItems = isAdmin
-        ? ['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Audit Logs', 'Account Requests', 'About']
-        : ['Audit Logs', 'About']
+        ? ['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Audit Logs', 'Account Requests', 'Warehouse Access', 'About']
+        : ['Audit Logs', 'Warehouse Access', 'About']
     const pageSize = 10
 
     useEffect(() => {
@@ -241,6 +241,10 @@ function TRUpload({ username, role, onLogout }) {
         }
         if (item === 'Account Requests') {
             navigate('/admin/account-requests')
+            return
+        }
+        if (item === 'Warehouse Access') {
+            navigate('/account/warehouse-access')
             return
         }
         showNotice(`${item} selected.`)

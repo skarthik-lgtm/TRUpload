@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -20,6 +20,7 @@ import {
 	faTriangleExclamation,
 	faXmark,
 } from '@fortawesome/free-solid-svg-icons'
+import { getAccessAuditLogs } from './api.js'
 
 const sampleRecords = [
 	{ id: 'UP-20260924-00125', user: 'Sarah Johnson', time: '09:12 AM', date: '2026-09-24', region: 'Northeast', facility: 'Aberdeen', instance: 'CSTRAB', groups: 3, status: 'Completed', duration: '1m 24s' },
@@ -47,11 +48,20 @@ function AuditLogs({ username, role, onLogout }) {
 	const navigate = useNavigate()
 	const isAdmin = String(role).toUpperCase() === 'ADMIN'
 	const [records] = useState(sampleRecords)
+	 const [accessEvents, setAccessEvents] = useState([])
+	 const [accessEventsError, setAccessEventsError] = useState('')
 	const [filters, setFilters] = useState({ user: '', region: '', facility: '', instance: '', groupId: '', startDate: '', endDate: '', status: 'All Statuses' })
 	const [page, setPage] = useState(1)
 	const [selectedRecord, setSelectedRecord] = useState(null)
 	const [isProfileOpen, setIsProfileOpen] = useState(false)
 	const pageSize = 6
+
+	 useEffect(() => {
+		if (!isAdmin) return
+		getAccessAuditLogs()
+		 .then((events) => setAccessEvents(Array.isArray(events) ? events : []))
+		 .catch((error) => setAccessEventsError(error.message || 'Could not load access audit events.'))
+	 }, [isAdmin])
 
 	const filteredRecords = useMemo(() => records.filter((record) => {
 		const matches = (value, filter) => !filter || value.toLowerCase().includes(filter.trim().toLowerCase())
@@ -117,6 +127,15 @@ function AuditLogs({ username, role, onLogout }) {
 							<div className="audit-heading-icon"><FontAwesomeIcon icon={faTableList} /></div>
 							<div><h1>Audit Log</h1><p>{isAdmin ? 'View and search all user activity and upload processing.' : 'Track your upload history and processing status.'}</p></div>
 						</div>
+
+						{isAdmin && <section className="audit-table-panel access-audit-panel" aria-label="Access control audit events">
+							<div className="access-audit-heading"><div><h2>Access control events</h2><p>Account, role, and warehouse changes recorded by the backend.</p></div><span>{accessEvents.length} events</span></div>
+							{accessEventsError && <p className="form-message" role="alert">{accessEventsError}</p>}
+							<div className="audit-table-wrap"><table className="audit-table"><thead><tr><th>Time</th><th>Actor</th><th>Action</th><th>Entity</th><th>Description</th></tr></thead>
+								<tbody>{accessEvents.map((event) => <tr key={event.auditLogId}><td>{event.createdAt ? new Date(event.createdAt).toLocaleString() : '—'}</td><td>{event.actorEmail || 'System'}</td><td>{event.actionType}</td><td>{event.entityType || '—'}{event.entityId ? ` #${event.entityId}` : ''}</td><td>{event.description || '—'}</td></tr>)}
+									{!accessEvents.length && !accessEventsError && <tr><td colSpan="5" className="audit-empty">No access events recorded.</td></tr>}</tbody>
+							</table></div>
+						</section>}
 
 						<section className={`audit-filters ${isAdmin ? 'admin-filters' : 'user-filters'}`} aria-label="Audit log filters">
 							{isAdmin && <FilterSelect label="User" value={filters.user} onChange={(value) => updateFilter('user', value)} placeholder="All Users" options={sampleRecords.map((record) => record.user)} />}

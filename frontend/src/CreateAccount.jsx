@@ -1,21 +1,30 @@
-import { useState } from 'react'
-import { signup } from './api.js'
+import { useEffect, useState } from 'react'
+import { getWarehouses, signup } from './api.js'
 
 function CreateAccount({ onBackToLogin, onSignupSuccess }) {
-    const [form, setForm] = useState({ firstName: '', lastName: '', email: '', username: '', password: '', role: 'USER' })
+    const [form, setForm] = useState({ firstName: '', lastName: '', email: '', username: '', password: '', warehouseIds: [] })
     const [showPassword, setShowPassword] = useState(false)
     const [message, setMessage] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [warehouses, setWarehouses] = useState([])
+    const [warehouseError, setWarehouseError] = useState('')
 
+    useEffect(() => {
+        getWarehouses()
+            .then((result) => setWarehouses(Array.isArray(result) ? result : []))
+            .catch((error) => setWarehouseError(error.message || 'Could not load warehouses.'))
+    }, [])
+    console.log(warehouses, "warehouses");
     async function handleSubmit(event) {
         event.preventDefault()
         setMessage('')
         setIsSubmitting(true)
 
         try {
-            await signup(form)
-            setForm({ firstName: '', lastName: '', email: '', username: '', password: '', role: 'USER' })
-            onSignupSuccess()
+            const result = await signup(form)
+            setMessage(result.message || 'Registration submitted for administrator review.')
+            setForm({ firstName: '', lastName: '', email: '', username: '', password: '', warehouseIds: [] })
+            window.setTimeout(onSignupSuccess, 1800)
         } catch (requestError) {
             setMessage(requestError.message)
         } finally {
@@ -25,6 +34,15 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
 
     function updateField(field, value) {
         setForm((current) => ({ ...current, [field]: value }))
+    }
+
+    function toggleWarehouse(id) {
+        setForm((current) => ({
+            ...current,
+            warehouseIds: current.warehouseIds.includes(id)
+                ? current.warehouseIds.filter((warehouseId) => warehouseId !== id)
+                : [...current.warehouseIds, id],
+        }))
     }
 
     return (
@@ -74,8 +92,23 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
                                     </button>
                                 </div>
                             </div>
-                            <button className="submit-button btn w-100" type="submit" disabled={isSubmitting}>
-                                {isSubmitting ? 'Creating account...' : 'Create account'}
+                            <fieldset className="mb-3">
+                                <legend className="form-label">Warehouses requested</legend>
+                                {warehouseError && <p className="form-message" role="alert">{warehouseError}</p>}
+                                {!warehouseError && !warehouses.length && <p className="form-message">Loading available warehouses...</p>}
+                                <div className="warehouse-choice-list">
+                                    {warehouses.map((warehouse) => <label className="warehouse-choice" key={warehouse.warehouseId}>
+                                        <input
+                                            type="checkbox"
+                                            checked={form.warehouseIds.includes(warehouse.warehouseId)}
+                                            onChange={() => toggleWarehouse(warehouse.warehouseId)}
+                                        />
+                                        <span><strong>{warehouse.facility}</strong><small>{warehouse.division || 'Unassigned division'} · {warehouse.database} · {warehouse.uploadCode}</small></span>
+                                    </label>)}
+                                </div>
+                            </fieldset>
+                            <button className="submit-button btn w-100" type="submit" disabled={isSubmitting || !warehouses.length || !form.warehouseIds.length}>
+                                {isSubmitting ? 'Submitting request...' : 'Submit registration'}
                             </button>
                             <p className="form-message" aria-live="polite">{message}</p>
                         </form>

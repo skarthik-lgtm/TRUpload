@@ -9,4 +9,8 @@ public interface LoginDao {
     Optional<SignupUser> findByLoginIdentifier(String identifier);
 
     Optional<Long> findRoleIdByUserId(Long userId);
+
+    Optional<String> findRoleNameByUserId(Long userId);
+
+    void markLoginNow(Long userId);
 }

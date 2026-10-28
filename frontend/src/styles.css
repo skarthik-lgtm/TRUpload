@@ -388,6 +388,73 @@ body { margin: 0; min-width: 320px; }
     font-size: 22px;
 }
 
+.live-account-requests { color: #172a3a; }
+.live-account-requests .account-page-header h1 { color: #172a3a; }
+.live-request-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; padding-bottom: 14px; border-bottom: 1px solid #dce5eb; }
+.live-request-toolbar label { font-size: 13px; font-weight: 700; }
+.live-request-toolbar select { min-width: 160px; padding: 8px 10px; border: 1px solid #cbd8e0; border-radius: 4px; background: #fff; }
+.live-request-toolbar > span { margin-left: auto; color: #687c8b; font-size: 13px; }
+.live-request-layout { display: grid; grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); gap: 20px; align-items: start; }
+.live-request-list { display: grid; gap: 8px; }
+.live-request-item { display: grid; gap: 6px; width: 100%; padding: 14px; border: 1px solid #dce5eb; border-radius: 4px; background: #fff; color: #283e4d; text-align: left; cursor: pointer; }
+.live-request-item.selected { border-color: #157b89; box-shadow: inset 3px 0 #157b89; }
+.live-request-item > span:not(.live-request-item-top) { font-size: 13px; }
+.live-request-item small, .live-detail-heading p, .account-decision-row small, .requested-warehouse small { color: #70818d; font-size: 12px; }
+.live-request-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.request-state { display: inline-flex; align-items: center; width: fit-content; padding: 4px 7px; border-radius: 3px; font-size: 10px; font-weight: 700; }
+.state-pending { color: #805c14; background: #fff4d8; }
+.state-approved { color: #176744; background: #e1f4e9; }
+.state-rejected { color: #9a3939; background: #fbe9e7; }
+.live-request-detail { min-width: 0; padding: 20px; border: 1px solid #dce5eb; border-radius: 4px; background: #fff; }
+.live-detail-heading, .account-decision-row, .requested-warehouse { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.live-detail-heading { padding-bottom: 17px; border-bottom: 1px solid #e5ebef; }
+.live-detail-heading h2 { margin: 4px 0; color: #172a3a; font-size: 22px; }
+.live-detail-heading p { margin: 0; }
+.live-detail-heading > div > small { color: #738592; font-size: 10px; font-weight: 700; }
+.account-decision-row { padding: 17px 0; border-bottom: 1px solid #e5ebef; }
+.account-decision-row > div:first-child, .requested-warehouse > div:first-child { display: grid; gap: 4px; }
+.request-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.request-actions button { padding: 7px 10px; border: 1px solid #167b68; border-radius: 3px; color: #fff; background: #167b68; font-size: 12px; font-weight: 700; }
+.request-actions button.reject { border-color: #b34b49; background: #b34b49; }
+.request-actions button:disabled { opacity: .45; cursor: not-allowed; }
+.requested-warehouse-list h3 { margin: 17px 0 10px; color: #203747; font-size: 15px; }
+.requested-warehouse { padding: 12px 0; border-top: 1px solid #edf1f3; }
+.requested-warehouse > div:first-child { flex: 1; min-width: 120px; }
+.requested-warehouse small { overflow-wrap: anywhere; }
+.warehouse-choice-list { display: grid; max-height: 210px; overflow-y: auto; border: 1px solid #d8e2e8; border-radius: 4px; }
+.warehouse-choice { display: flex; align-items: flex-start; gap: 10px; padding: 10px; border-bottom: 1px solid #e8eef1; cursor: pointer; }
+.warehouse-choice:last-child { border-bottom: 0; }
+.warehouse-choice input { margin-top: 3px; accent-color: #147c83; }
+.warehouse-choice span { display: grid; gap: 3px; }
+.warehouse-choice strong { font-size: 13px; }
+.warehouse-choice small { color: #738592; font-size: 11px; }
+.warehouse-access-section { margin-top: 20px; padding: 18px; border-top: 1px solid #dce5eb; background: #fff; }
+.warehouse-access-section h2 { margin: 0 0 12px; color: #203747; font-size: 17px; }
+.warehouse-assignment-list { display: grid; gap: 8px; }
+.warehouse-assignment-list article { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid #e0e8ed; border-radius: 3px; }
+.warehouse-assignment-list article > span:not(.request-state) { color: #70818d; font-size: 12px; }
+.warehouse-access-form { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+.warehouse-access-form label { display: grid; gap: 5px; min-width: 180px; flex: 1; font-size: 12px; font-weight: 700; }
+.warehouse-access-form select { min-height: 38px; padding: 7px 9px; border: 1px solid #cbd8e0; border-radius: 4px; background: #fff; }
+.warehouse-access-form .submit-button { width: auto; min-height: 38px; }
+.admin-access-queue { margin-top: 30px; }
+.access-audit-panel { margin-bottom: 18px; }
+.access-audit-heading { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid #e1e8ec; }
+.access-audit-heading h2 { margin: 0; color: #193b4b; font-size: 16px; }
+.access-audit-heading p { margin: 4px 0 0; color: #748692; font-size: 12px; }
+.access-audit-heading > span { color: #506b7b; font-size: 12px; }
+.admin-users-list { display: grid; gap: 9px; }
+.admin-user-row { display: grid; grid-template-columns: minmax(180px, .8fr) 1.2fr; gap: 12px; padding: 13px; border: 1px solid #e0e8ed; border-radius: 3px; }
+.admin-user-identity { display: grid; align-content: center; gap: 3px; }
+.admin-user-identity span, .admin-user-identity small { color: #70818d; font-size: 11px; overflow-wrap: anywhere; }
+.admin-user-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 7px; }
+.admin-user-controls select { min-width: 100px; max-width: 210px; padding: 7px; border: 1px solid #cbd8e0; border-radius: 4px; background: #fff; font-size: 11px; }
+.admin-user-warehouses { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 7px; }
+.admin-user-warehouses > span { display: inline-flex; align-items: center; gap: 6px; padding: 4px 7px; border: 1px solid #dce5eb; font-size: 11px; }
+.admin-user-warehouses > .admin-user-warehouse { flex-wrap: wrap; }
+.admin-user-warehouse select { max-width: 150px; padding: 3px; border: 1px solid #cbd8e0; background: #fff; font-size: 10px; }
+.admin-user-warehouses button { border: 0; color: #a23f3c; background: transparent; font-size: 16px; line-height: 1; }
+
 
 /* =========================================================
    SUMMARY CARDS
@@ -1188,6 +1255,15 @@ body { margin: 0; min-width: 320px; }
     .account-page-header {
         align-items: flex-start;
     }
+
+    .live-request-layout { grid-template-columns: 1fr; }
+    .live-detail-heading, .account-decision-row, .requested-warehouse { align-items: flex-start; flex-direction: column; }
+    .live-request-detail { padding: 15px; }
+    .warehouse-assignment-list article { align-items: flex-start; flex-direction: column; }
+    .warehouse-access-form label, .warehouse-access-form .submit-button { width: 100%; }
+    .admin-user-row { grid-template-columns: 1fr; }
+    .admin-user-controls { justify-content: flex-start; }
+    .admin-user-controls select { max-width: none; flex: 1; }
 
     .account-header-icon {
         display: none;

@@ -38,10 +38,14 @@ public class JwtService {
     }
 
     public String generateToken(SignupUser user, Long roleId) {
+        return generateToken(user, roleId, Long.valueOf(2).equals(roleId) ? "ADMIN" : "USER");
+    }
+
+    public String generateToken(SignupUser user, Long roleId, String roleName) {
         Date issuedAt = new Date();
         var tokenBuilder = Jwts.builder()
                 .subject(user.getEmail())
-            .claim("role", Long.valueOf(2).equals(roleId) ? "ADMIN" : "USER")
+                .claim("role", roleName)
                 .issuedAt(issuedAt)
                 .expiration(new Date(issuedAt.getTime() + expirationMs));
         if (roleId != null) {
@@ -57,6 +61,10 @@ public class JwtService {
     public Long extractRoleId(String token) {
         Object roleId = parseClaims(token).get("roleId");
         return roleId instanceof Number number ? number.longValue() : null;
+    }
+
+    public String extractRole(String token) {
+        return parseClaims(token).get("role", String.class);
     }
 
     public boolean isValid(String token) {

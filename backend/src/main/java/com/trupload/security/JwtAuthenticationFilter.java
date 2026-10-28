@@ -11,6 +11,8 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -18,9 +20,13 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final JdbcTemplate sqlServerJdbcTemplate;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            @Qualifier("sqlServerJdbcTemplate") JdbcTemplate sqlServerJdbcTemplate) {
         this.jwtService = jwtService;
+        this.sqlServerJdbcTemplate = sqlServerJdbcTemplate;
     }
 
     @Override
@@ -33,15 +39,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             String token = header.substring(7);
             if (jwtService.isValid(token)) {
                 String subject = jwtService.extractSubject(token);
-                Long roleId = jwtService.extractRoleId(token);
-                String authority = Long.valueOf(2).equals(roleId) ? "ROLE_ADMIN" : "ROLE_USER";
-                UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                subject,
-                                null,
-                        java.util.List.of(new SimpleGrantedAuthority(authority)));
-                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-                SecurityContextHolder.getContext().setAuthentication(authentication);
+                var currentRoles = sqlServerJdbcTemplate.query("""
+                        SELECT TOP (1) R.RoleName
+                        FROM [TRUpload].[dbo].[Users] U
+                        JOIN [TRUpload].[dbo].[UserRoles] UR ON UR.UserID = U.UserID
+                        JOIN [TRUpload].[dbo].[Roles] R ON R.RoleID = UR.RoleID
+                        WHERE U.Email = ? AND U.Status = 'ACTIVE'
+                        ORDER BY CASE WHEN R.RoleName = 'ADMIN' THEN 0 ELSE 1 END
+                        """, (rs, rowNum) -> rs.getString("RoleName"), subject);
+                if (!currentRoles.isEmpty()) {
+                    String authority = "ADMIN".equalsIgnoreCase(currentRoles.get(0))
+                            ? "ROLE_ADMIN"
+                            : "ROLE_USER";
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            subject,
+                            null,
+                            java.util.List.of(new SimpleGrantedAuthority(authority)));
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
             }
         }
         filterChain.doFilter(request, response);

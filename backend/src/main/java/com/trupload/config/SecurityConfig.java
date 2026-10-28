@@ -28,20 +28,23 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         return http
                 .csrf(csrf -> csrf.disable())
-                .cors(cors -> {})
+                .cors(cors -> {
+                })
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/health", "/api/auth/login", "/api/auth/signup").permitAll()
-                    .requestMatchers("/api/database/instances").hasRole("ADMIN")
+                        .requestMatchers("/api/health", "/api/auth/login", "/api/auth/signup", "/api/warehouses")
+                        .permitAll()
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers("/api/database/instances").hasAnyRole("ADMIN", "USER")
                         .requestMatchers("/api/auth/logout").authenticated()
                         .anyRequest().authenticated())
                 .exceptionHandling(exceptions -> exceptions
-                    .accessDeniedHandler((request, response, exception) -> {
-                        response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                        response.setContentType("application/json");
-                        response.getWriter().write(
-                            "{\"message\":\"Admin role required to access database instances.\"}");
-                    }))
+                        .accessDeniedHandler((request, response, exception) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write(
+                                    "{\"message\":\"You do not have permission to access this resource.\"}");
+                        }))
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

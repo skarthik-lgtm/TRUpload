@@ -2,9 +2,11 @@ package com.trupload.service.auth.signup;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.regex.Pattern;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,7 +34,7 @@ public class SignupServiceImpl implements SignupService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "sqlServerTransactionManager")
     public SignupResponse signup(SignupRequest request) {
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         String username = request.username().trim();
@@ -47,22 +49,39 @@ public class SignupServiceImpl implements SignupService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username is already registered");
         }
 
+        List<Long> warehouseIds = request.warehouseIds() == null
+                ? List.of()
+                : List.copyOf(new LinkedHashSet<>(request.warehouseIds()));
+        if (warehouseIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select at least one warehouse.");
+        }
+        for (Long warehouseId : warehouseIds) {
+            if (warehouseId == null || !signupDao.warehouseExists(warehouseId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A selected warehouse is invalid.");
+            }
+        }
+
         SignupUser user = signupDao.save(new SignupUser(
                 username,
                 email,
-            firstName,
-            lastName,
+                firstName,
+                lastName,
                 passwordEncoder.encode(request.password()),
                 LocalDateTime.now()));
-        String role = "USER";
-        signupDao.assignRole(user.getId(), role);
+        signupDao.assignRole(user.getId(), "USER");
+        long accountRequestId = signupDao.createAccountRequest(user.getId());
+        for (Long warehouseId : warehouseIds) {
+            signupDao.addRequestedWarehouse(accountRequestId, warehouseId);
+        }
 
         return new SignupResponse(
-                "Account created successfully",
+                "Registration submitted for administrator review",
                 user.getUsername(),
                 user.getEmail(),
-            role,
-                user.getCreatedDate());
+                "USER",
+                user.getCreatedDate(),
+                accountRequestId,
+                "PENDING");
     }
 
     private void validateEmail(String email) {

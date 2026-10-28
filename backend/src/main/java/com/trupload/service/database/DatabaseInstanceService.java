@@ -44,10 +44,24 @@ public class DatabaseInstanceService {
     }
 
     public List<DatabaseInstanceResponse> findInstances() {
+        return findInstances(null);
+    }
+
+    public List<DatabaseInstanceResponse> findInstances(Set<String> allowedDatabaseNames) {
+        return findInstances(allowedDatabaseNames, null);
+    }
+
+    public List<DatabaseInstanceResponse> findInstances(
+            Set<String> allowedDatabaseNames,
+            Set<String> allowedFacilityIds) {
         List<String> databaseNames = getDatabaseNames();
         List<DatabaseInstanceResponse> response = new ArrayList<>();
 
         for (String databaseName : databaseNames) {
+
+            if (allowedDatabaseNames != null && !allowedDatabaseNames.contains(databaseName)) {
+                continue;
+            }
 
             if (databaseName == null
                     || !databaseName.matches("[A-Za-z0-9_]+")) {
@@ -56,9 +70,16 @@ public class DatabaseInstanceService {
 
             try {
                 CachedRoutes cachedRoutes = getCachedRoutes(databaseName);
+                List<RouteGroupResponse> routeGroups = cachedRoutes.routeGroups();
+                if (allowedFacilityIds != null) {
+                    routeGroups = routeGroups.stream()
+                            .filter(group -> group.orderFacilities().stream()
+                                    .anyMatch(facility -> allowedFacilityIds.contains(facility.sourceFacilityId())))
+                            .toList();
+                }
                 response.add(new DatabaseInstanceResponse(
                         databaseName,
-                        cachedRoutes.routeGroups(),
+                        routeGroups,
                         cachedRoutes.refreshedAt()));
 
             } catch (DataAccessException exception) {
@@ -91,16 +112,15 @@ public class DatabaseInstanceService {
             }
 
             String databaseQuery = """
-                    SELECT name
-                    FROM sys.databases
-                    WHERE database_id > 4
-                      AND state_desc = 'ONLINE'
-                      AND name LIKE 'CSTR%'
-                    ORDER BY name
+                        SELECT DISTINCT LTRIM(RTRIM([database])) AS DatabaseName
+                        FROM [TRUpload].[dbo].[Warehouses]
+                        WHERE [database] IS NOT NULL
+                            AND LTRIM(RTRIM([database])) <> ''
+                        ORDER BY DatabaseName
                     """;
             List<String> names = sqlServerJdbcTemplate.query(
                     databaseQuery,
-                    (resultSet, rowNumber) -> resultSet.getString("name"));
+                    (resultSet, rowNumber) -> resultSet.getString("DatabaseName"));
             databaseNamesCache = new CachedDatabaseNames(List.copyOf(names), Instant.now());
             return databaseNamesCache.names();
         }

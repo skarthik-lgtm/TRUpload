@@ -19,11 +19,13 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.web.server.ResponseStatusException;
 
 import com.trupload.service.upload.BillingUploadService;
+import com.trupload.api.access.AccountAccessService;
 
 class BillingUploadControllerTest {
 
     private final BillingUploadService service = mock(BillingUploadService.class);
-    private final BillingUploadController controller = new BillingUploadController(service);
+    private final AccountAccessService accessService = mock(AccountAccessService.class);
+    private final BillingUploadController controller = new BillingUploadController(service, accessService);
 
     @Test
     void rejectsMissingAuthenticationWithoutCallingUploadService() {
@@ -51,6 +53,7 @@ class BillingUploadControllerTest {
         Authentication authentication = authenticated("user@example.com", "ROLE_USER");
         UploadRequest request = new UploadRequest(List.of(new UploadSelection("CSTRAB", "0101T01")));
         UploadResponse expected = new UploadResponse(UUID.randomUUID(), 0, 1, List.of(), List.of());
+        when(accessService.hasGroupAccess("user@example.com", "CSTRAB", "0101T01")).thenReturn(true);
         when(service.upload(request, "user@example.com", "USER")).thenReturn(expected);
 
         assertEquals(expected, controller.upload(request, authentication));
@@ -63,10 +66,10 @@ class BillingUploadControllerTest {
                 7L, "CSTRMT_QA", "1016I09wave", "469323",
                 LocalDate.of(2012, 10, 18), LocalDateTime.of(2026, 10, 22, 10, 8, 52),
                 "admin@example.com", null));
-        when(service.findRecentSuccessfulUploads()).thenReturn(expected);
+        when(service.findRecentSuccessfulUploads("admin@example.com", true)).thenReturn(expected);
 
-        assertEquals(expected, controller.getSuccessfulUploads());
-        verify(service).findRecentSuccessfulUploads();
+        assertEquals(expected, controller.getSuccessfulUploads(authenticated("admin@example.com", "ROLE_ADMIN")));
+        verify(service).findRecentSuccessfulUploads("admin@example.com", true);
     }
 
     private Authentication authenticated(String username, String authority) {

@@ -2,7 +2,7 @@ package com.trupload.service.auth.login;
 
 import java.util.Locale;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,10 +14,12 @@ import com.trupload.model.auth.login.LoginRequest;
 import com.trupload.model.auth.login.LoginResponse;
 import com.trupload.model.auth.signup.SignupUser;
 import com.trupload.security.JwtService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class LoginServiceImpl implements LoginService {
-
+    private static final Logger log = LoggerFactory.getLogger(LoginServiceImpl.class);
     private final LoginDao loginDao;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
@@ -29,13 +31,13 @@ public class LoginServiceImpl implements LoginService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "sqlServerTransactionManager")
     public LoginResponse login(LoginRequest request) {
         String identifier = request.email().trim().toLowerCase(Locale.ROOT);
         SignupUser user = loginDao.findByLoginIdentifier(identifier)
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.UNAUTHORIZED, "Login account not found"));
-
+        log.info("Processing user: {}", user.getPassword());
         if (!"ACTIVE".equalsIgnoreCase(user.getStatus())) {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "Login account is not active");
@@ -45,8 +47,12 @@ public class LoginServiceImpl implements LoginService {
             throw new ResponseStatusException(
                     HttpStatus.UNAUTHORIZED, "Password verification failed");
         }
-        user.markLoginNow();
+        loginDao.markLoginNow(user.getId());
         Long roleId = loginDao.findRoleIdByUserId(user.getId())
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.FORBIDDEN, "No role is assigned to this user"));
+
+        String roleName = loginDao.findRoleNameByUserId(user.getId())
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.FORBIDDEN, "No role is assigned to this user"));
 
@@ -54,6 +60,7 @@ public class LoginServiceImpl implements LoginService {
                 "Login successful",
                 user.email(),
                 roleId,
-                jwtService.generateToken(user, roleId));
+                roleName,
+                jwtService.generateToken(user, roleId, roleName));
     }
 }
