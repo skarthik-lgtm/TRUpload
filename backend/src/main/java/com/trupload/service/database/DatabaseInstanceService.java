@@ -254,7 +254,7 @@ public class DatabaseInstanceService {
                     CAST(
                         CAST(r.DispatchDateTime AS FLOAT) AS DATETIME
                     ) AS DispatchDateTime
-                FROM [%s].[dbo].[Route] r
+                FROM [%s].[dbo].[Route] AS r WITH (NOLOCK)
                 WHERE r.GroupID IS NOT NULL
                   AND LOWER(RTRIM(r.GroupID)) NOT LIKE '%%wave'
                   AND r.GroupID LIKE
@@ -330,11 +330,11 @@ public class DatabaseInstanceService {
                     SUM(COALESCE(so.Q2, 0)) AS TotalQ2,
                     SUM(COALESCE(so.Q3, 0)) AS TotalQ3,
                     SUM(COALESCE(so.Q4, 0)) AS TotalQ4
-                FROM [%s].[dbo].[ScheduledOrder] so
+                FROM [%s].[dbo].[ScheduledOrder] AS so WITH (NOLOCK)
                 WHERE so.RouteGroupID IS NOT NULL
                   AND EXISTS (
                       SELECT 1
-                      FROM [%s].[dbo].[Route] r
+                      FROM [%s].[dbo].[Route] AS r WITH (NOLOCK)
                       WHERE r.GroupID = so.RouteGroupID
                         AND r.GroupID IS NOT NULL
                         AND LOWER(RTRIM(r.GroupID)) NOT LIKE '%%wave'
@@ -367,9 +367,9 @@ public class DatabaseInstanceService {
                      sourceFacility.Facility AS SourceName,
                      orders.DestinationID AS DestinationID,
                      sourceFacility.Division AS Division
-                 FROM [%s].[dbo].[Orders] orders
+                 FROM [%s].[dbo].[Orders] AS orders WITH (NOLOCK)
 
-                 LEFT JOIN [OrderDownload].[dbo].[tblDatabaseControl] sourceFacility
+                 LEFT JOIN [TRUpload].[dbo].[Warehouse] AS sourceFacility WITH (NOLOCK)
                      ON TRY_CONVERT(INT, sourceFacility.fAC_id)
                 = TRY_CONVERT(INT, orders.SourceID)
                 AND NULLIF(LTRIM(RTRIM(sourceFacility.KeyCode)), '') IS NOT NULL
@@ -377,7 +377,7 @@ public class DatabaseInstanceService {
                  WHERE orders.GroupID IS NOT NULL
                    AND EXISTS (
                        SELECT 1
-                       FROM [%s].[dbo].[Route] r
+                       FROM [%s].[dbo].[Route] AS r WITH (NOLOCK)
                        WHERE r.GroupID = orders.GroupID
                          AND r.GroupID IS NOT NULL
                          AND LOWER(RTRIM(r.GroupID)) NOT LIKE '%%wave'
@@ -422,11 +422,11 @@ public class DatabaseInstanceService {
                 SELECT
                     ra.RouteGroupID,
                     COUNT(*) AS NumberOfStops
-                FROM [%s].[dbo].[RouteActivity] ra
+                FROM [%s].[dbo].[RouteActivity] AS ra WITH (NOLOCK)
                 WHERE ra.RouteStopIndex = 7
                   AND EXISTS (
                       SELECT 1
-                      FROM [%s].[dbo].[Route] r
+                      FROM [%s].[dbo].[Route] AS r WITH (NOLOCK)
                       WHERE r.ID = ra.RouteID
                         AND r.GroupID = ra.RouteGroupID
                         AND r.GroupID IS NOT NULL
