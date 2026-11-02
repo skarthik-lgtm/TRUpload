@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AuditLogs from './AuditLogs.jsx'
-import CreateAccount from './CreateAccount.jsx'
 import ForgotPassword from './ForgotPassword.jsx'
 import Login from './Login.jsx'
 import TRUpload from './TRUpload.jsx'
 import { clearAuthToken } from './api.js'
-import AccountRequests from './AccountRequests.jsx'
-import WarehouseAccess from './WarehouseAccess.jsx'
+import AdminAccountManagement from './AdminAccountManagement.jsx'
 
 const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000
 const ACTIVITY_STORAGE_THROTTLE_MS = 30 * 1000
@@ -105,11 +103,7 @@ function AppRoutes() {
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route
                 path="/login"
-                element={user ? <Navigate to="/trupload" replace /> : <Login onLogin={handleLogin} onCreateAccount={() => navigate('/create-account')} onForgotPassword={() => navigate('/forgot-password')} />}
-            />
-            <Route
-                path="/create-account"
-                element={user ? <Navigate to="/trupload" replace /> : <CreateAccount onBackToLogin={() => navigate('/login')} onSignupSuccess={() => navigate('/login')} />}
+                element={user ? <Navigate to="/trupload" replace /> : <Login onLogin={handleLogin} onForgotPassword={() => navigate('/forgot-password')} />}
             />
             <Route
                 path="/forgot-password"
@@ -121,11 +115,7 @@ function AppRoutes() {
             />
             <Route
                 path="/admin/account-requests"
-                element={user?.role === 'ADMIN' ? <AccountRequests /> : <Navigate to={user ? '/trupload' : '/login'} replace />}
-            />
-            <Route
-                path="/account/warehouse-access"
-                element={user ? <WarehouseAccess /> : <Navigate to="/login" replace />}
+                element={user?.role === 'ADMIN' ? <AdminAccountManagement adminEmail={user.email} /> : <Navigate to={user ? '/trupload' : '/login'} replace />}
             />
             <Route path="/audit-logs" element={user ? <AuditLogs username={user.email} role={user.role} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
             <Route path="/trupload/*" element={<NotFound />} />

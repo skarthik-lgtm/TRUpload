@@ -2,8 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faChevronDown, faChevronLeft, faChevronRight, faCircleUser, faCloudArrowUp, faCloud, faFile, faFolder, faHouse, faSearch, faSpinner, faTableList, faTriangleExclamation, faXmark, faUndo } from '@fortawesome/free-solid-svg-icons'
 import { useNavigate } from 'react-router-dom'
-import { getDatabaseInstances, getFailedUploads, getSuccessfulUploads, uploadBillingGroups } from './api.js'
-const uploadStages = [{ label: 'Validation', icon: faSpinner }]
+import { getDatabaseInstances, getFailedUploads, getSuccessfulUploads, preflightBillingGroup, uploadBillingGroups } from './api.js'
 
 function formatDispatchDates(routes) {
     return [...new Set(routes
@@ -31,6 +30,9 @@ function TRUpload({ username, role, onLogout }) {
     const [rteFileName, setRteFileName] = useState('')
     const [isRteConfirmationOpen, setIsRteConfirmationOpen] = useState(false)
     const [isUploadProgressOpen, setIsUploadProgressOpen] = useState(false)
+    const [isValidationPreviewOpen, setIsValidationPreviewOpen] = useState(false)
+    const [isPreflighting, setIsPreflighting] = useState(false)
+    const [validationProgress, setValidationProgress] = useState([])
     const [isUploadSuccessOpen, setIsUploadSuccessOpen] = useState(false)
     const [uploadResult, setUploadResult] = useState(null)
     const [isShuttleWarningOpen, setIsShuttleWarningOpen] = useState(false)
@@ -46,8 +48,8 @@ function TRUpload({ username, role, onLogout }) {
     const normalizedRole = String(role).toUpperCase()
     const isAdmin = normalizedRole === 'ADMIN'
     const menuItems = isAdmin
-        ? ['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Audit Logs', 'Account Requests', 'Warehouse Access', 'About']
-        : ['Audit Logs', 'Warehouse Access', 'About']
+        ? ['Make RTE File', 'One Shuttle File', 'Load Shuttle File', 'Audit Logs', 'Account Requests', 'About']
+        : ['Audit Logs', 'About']
     const pageSize = 10
 
     useEffect(() => {
@@ -147,6 +149,52 @@ function TRUpload({ username, role, onLogout }) {
             setIsShuttleWarningOpen(true)
             return
         }
+        await startValidationPreview()
+    }
+
+    async function startValidationPreview() {
+        setIsShuttleWarningOpen(false)
+        setIsValidationPreviewOpen(true)
+        setIsPreflighting(true)
+
+        const groupsToCheck = selectedGroups.map((group) => ({
+            id: group.id,
+            databaseName: group.databaseName,
+            routeGroupId: group.groupId,
+            status: 'WAITING',
+            response: null,
+            error: '',
+        }))
+        setValidationProgress(groupsToCheck)
+
+        for (let index = 0; index < groupsToCheck.length; index += 1) {
+            const group = groupsToCheck[index]
+            setValidationProgress((current) => current.map((item, itemIndex) =>
+                itemIndex === index ? { ...item, status: 'RUNNING' } : item))
+            try {
+                const results = await preflightBillingGroup({
+                    databaseName: group.databaseName,
+                    routeGroupId: group.routeGroupId,
+                })
+                const response = Array.isArray(results) ? results[0] : null
+                if (!response) throw new Error('No validation result was returned for this billing group.')
+                setValidationProgress((current) => current.map((item, itemIndex) =>
+                    itemIndex === index
+                        ? { ...item, status: response.valid ? 'READY' : 'FAILED', response }
+                        : item))
+            } catch (preflightError) {
+                setValidationProgress((current) => current.map((item, itemIndex) =>
+                    itemIndex === index
+                        ? { ...item, status: 'ERROR', error: preflightError.message || 'Validation request failed.' }
+                        : item))
+            }
+        }
+
+        setIsPreflighting(false)
+    }
+
+    async function confirmPreflightUpload() {
+        setIsValidationPreviewOpen(false)
         await runUpload()
     }
 
@@ -241,10 +289,6 @@ function TRUpload({ username, role, onLogout }) {
         }
         if (item === 'Account Requests') {
             navigate('/admin/account-requests')
-            return
-        }
-        if (item === 'Warehouse Access') {
-            navigate('/account/warehouse-access')
             return
         }
         showNotice(`${item} selected.`)
@@ -379,20 +423,55 @@ function TRUpload({ username, role, onLogout }) {
                     <ul className="shuttle-warning-list">{shuttleGroups.map((group) => <li key={group.id}><strong>{group.databaseName} / {group.groupId}</strong><span>{group.routes.length ? group.routes.map((route) => `${route.routeId} · ${String(route.dispatchDateTime || 'Date unavailable').slice(0, 10)}`).join(' | ') : `${group.totalRoutes} routes · ${group.totalOrders} orders · ${group.totalStops} stops`}</span></li>)}</ul>
                     <div className="action-modal-footer">
                         <button className="modal-secondary-button" type="button" onClick={() => setIsShuttleWarningOpen(false)}>Cancel</button>
-                        <button className="modal-primary-button" type="button" onClick={runUpload}>OK</button>
+                        <button className="modal-primary-button" type="button" onClick={startValidationPreview}>Continue to validation</button>
+                    </div>
+                </section>
+            </div>}
+            {isValidationPreviewOpen && <div className="upload-progress-backdrop validation-preview-backdrop" role="dialog" aria-modal="true" aria-labelledby="validation-preview-title">
+                <section className="upload-progress-modal validation-preview-modal">
+                    <div className="validation-preview-heading">
+                        <div>
+                            <p>{isPreflighting ? 'READ-ONLY CHECK' : 'READY FOR REVIEW'}</p>
+                            <h2 id="validation-preview-title">{isPreflighting ? 'Validating selected billings' : 'Review before upload'}</h2>
+                        </div>
+                        {isPreflighting && <FontAwesomeIcon className="validation-spinner" icon={faSpinner} spin />}
+                    </div>
+                    <p className="validation-preview-caption">
+                        {isPreflighting
+                            ? 'Checking route weekday, dispatch date, and duplicate status for each group.'
+                            : 'These checks did not write upload history. Upload will repeat them before processing.'}
+                    </p>
+                    <div className="validation-group-list">
+                        {validationProgress.map((item) => <article className={`validation-group-row validation-${item.status.toLowerCase()}`} key={item.id}>
+                            <div className="validation-group-summary">
+                                <span className="validation-state-icon">
+                                    {item.status === 'RUNNING' ? <FontAwesomeIcon icon={faSpinner} spin /> : item.status === 'READY' ? <FontAwesomeIcon icon={faCheck} /> : item.status === 'FAILED' || item.status === 'ERROR' ? <FontAwesomeIcon icon={faTriangleExclamation} /> : null}
+                                </span>
+                                <span><strong>{item.databaseName} / {item.routeGroupId}</strong><small>{item.status === 'RUNNING' ? 'Checking routes and duplicates...' : item.status === 'WAITING' ? 'Waiting' : item.status === 'READY' ? `${item.response?.routeCount ?? 0} routes ready` : item.status === 'ERROR' ? item.error : `${item.response?.routeCount ?? 0} routes need attention`}</small></span>
+                                <b>{item.status}</b>
+                            </div>
+                            {item.response?.groupReasons?.map((reason) => <p className="validation-route-reason" key={reason}>{reason}</p>)}
+                            {item.response?.routeValidations?.map((route) => <div className="validation-route-detail" key={`${route.routeId}-${route.dispatchDate}`}>
+                                <strong>Route {route.routeId || 'unknown'} · {route.dispatchDate || 'date missing'}</strong>
+                                <ul>{route.checks.map((check) => <li className={check.passed ? 'passed' : 'failed'} key={check.name}>
+                                    <FontAwesomeIcon icon={check.passed ? faCheck : faTriangleExclamation} />
+                                    <span><b>{check.name}:</b> {check.message}</span>
+                                </li>)}</ul>
+                            </div>)}
+                        </article>)}
+                    </div>
+                    <div className="action-modal-footer validation-preview-footer">
+                        <button className="modal-secondary-button" type="button" disabled={isPreflighting} onClick={() => setIsValidationPreviewOpen(false)}>Cancel</button>
+                        <button className="modal-primary-button" type="button" disabled={isPreflighting || validationProgress.some((item) => item.status === 'ERROR')} onClick={confirmPreflightUpload}>
+                            {isPreflighting ? 'Validating...' : 'Confirm upload'}
+                        </button>
                     </div>
                 </section>
             </div>}
             {isUploadProgressOpen && <div className="upload-progress-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-progress-title">
                 <section className="upload-progress-modal">
                     <h2 id="upload-progress-title">Uploading selected billings</h2>
-                    <div className="upload-stage-track">
-                        {uploadStages.map((stage) => <div className="upload-stage current" key={stage.label}>
-                            <div className="upload-stage-node"><FontAwesomeIcon icon={stage.icon} spin /></div>
-                            <strong>{stage.label}</strong><span>In Progress</span>
-                        </div>)}
-                    </div>
-                    <div className="upload-progress-message"><FontAwesomeIcon icon={faSpinner} spin /><span>Checking route weekdays, date limits, and duplicate upload records...</span></div>
+                    <div className="upload-progress-message"><FontAwesomeIcon icon={faSpinner} spin /><span>Applying final checks and recording upload results...</span></div>
                 </section>
             </div>}
             {isUploadSuccessOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-success-title">

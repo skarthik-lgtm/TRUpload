@@ -27,14 +27,19 @@ public class SignupDaoImpl implements SignupDao {
 
     @Override
     public SignupUser save(SignupUser user) {
+        return save(user, "PENDING");
+    }
+
+    @Override
+    public SignupUser save(SignupUser user, String status) {
         Long id = jdbcTemplate.queryForObject("""
                 INSERT INTO [TRUpload].[dbo].[Users]
                     (Username, Email, PasswordHash, FirstName, LastName, Status)
                 OUTPUT INSERTED.UserID
-                VALUES (?, ?, ?, ?, ?, 'PENDING')
+                VALUES (?, ?, ?, ?, ?, ?)
                 """, Long.class,
                 user.getUsername(), user.getEmail(), user.getPassword(),
-                user.getFirstName(), user.getLastName());
+                user.getFirstName(), user.getLastName(), status);
         user.setId(id);
         return user;
     }
@@ -71,6 +76,31 @@ public class SignupDaoImpl implements SignupDao {
                 SELECT COUNT(*) FROM [TRUpload].[dbo].[Warehouses] WHERE WarehouseID = ?
                 """, Integer.class, warehouseId);
         return count != null && count > 0;
+    }
+
+    @Override
+    public long findUserIdByEmail(String email) {
+        Long userId = jdbcTemplate.queryForObject(
+                "SELECT UserID FROM [TRUpload].[dbo].[Users] WHERE Email = ?", Long.class, email);
+        return userId == null ? 0 : userId;
+    }
+
+    @Override
+    public void assignWarehouse(Long userId, long warehouseId, long assignedBy) {
+        jdbcTemplate.update("""
+                INSERT INTO [TRUpload].[dbo].[UserWarehouses] (UserID, WarehouseID, AssignedBy)
+                VALUES (?, ?, ?)
+                """, userId, warehouseId, assignedBy);
+    }
+
+    @Override
+    public void recordAdminCreatedUser(long actorId, long userId, int warehouseCount) {
+        jdbcTemplate.update("""
+                INSERT INTO [TRUpload].[dbo].[AuditLogs]
+                    (ActorUserID, ActionType, EntityType, EntityID, Description)
+                VALUES (?, 'USER_CREATED', 'User', ?, ?)
+                """, actorId, userId,
+                "Admin created active user and assigned " + warehouseCount + " warehouse(s)");
     }
 
     private boolean exists(String column, String value) {

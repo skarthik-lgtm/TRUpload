@@ -11,13 +11,26 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.trupload.model.auth.signup.SignupRequest;
+import com.trupload.model.auth.signup.SignupResponse;
+import com.trupload.service.auth.signup.SignupService;
 
 @RestController
 public class AccountAccessController {
     private final AccountAccessService accountAccessService;
+    private final SignupService signupService;
 
-    public AccountAccessController(AccountAccessService accountAccessService) {
+    public AccountAccessController(AccountAccessService accountAccessService, SignupService signupService) {
         this.accountAccessService = accountAccessService;
+        this.signupService = signupService;
+    }
+
+    @org.springframework.web.bind.annotation.PostMapping("/api/admin/users")
+    public org.springframework.http.ResponseEntity<SignupResponse> createStagedUser(
+            @Valid @RequestBody SignupRequest request,
+            Authentication authentication) {
+        return org.springframework.http.ResponseEntity.status(org.springframework.http.HttpStatus.CREATED)
+                .body(signupService.createAdminAccount(request, authentication.getName()));
     }
 
     @GetMapping("/api/account/requests")
@@ -68,6 +81,11 @@ public class AccountAccessController {
         accountAccessService.updateUserRole(id, request.role(), authentication.getName());
     }
 
+    @org.springframework.web.bind.annotation.DeleteMapping("/api/admin/users/{id}")
+    public void deleteUser(@PathVariable long id, Authentication authentication) {
+        accountAccessService.deleteUser(id, authentication.getName());
+    }
+
     @org.springframework.web.bind.annotation.PostMapping("/api/admin/users/{id}/warehouses")
     public void assignWarehouse(
             @PathVariable long id,
@@ -82,6 +100,11 @@ public class AccountAccessController {
             @PathVariable long warehouseId,
             Authentication authentication) {
         accountAccessService.removeWarehouse(id, warehouseId, authentication.getName());
+    }
+
+    @org.springframework.web.bind.annotation.DeleteMapping("/api/admin/users/{id}/warehouses")
+    public void removeAllWarehouses(@PathVariable long id, Authentication authentication) {
+        accountAccessService.removeAllWarehouses(id, authentication.getName());
     }
 
     @org.springframework.web.bind.annotation.PostMapping("/api/admin/users/{id}/warehouses/replace")

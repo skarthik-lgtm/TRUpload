@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.core.Authentication;
 
 import com.trupload.model.auth.signup.SignupRequest;
 import com.trupload.model.auth.signup.SignupResponse;
@@ -24,7 +25,10 @@ public class SignupController {
     }
 
     @PostMapping
-    public ResponseEntity<SignupResponse> signup(@Valid @RequestBody SignupRequest request) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(signupService.signup(request));
+    public ResponseEntity<SignupResponse> signup(
+            @Valid @RequestBody SignupRequest request,
+            Authentication authentication) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(signupService.createAdminAccount(request, authentication.getName()));
     }
 }

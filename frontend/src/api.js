@@ -35,17 +35,17 @@ export function clearAuthToken() {
     window.localStorage.removeItem('trupload_last_activity')
 }
 
-export function signup(account) {
-    return request('/api/auth/signup', {
-        method: 'POST',
-        body: JSON.stringify(account),
-    })
-}
-
 export function uploadBillingGroups(selections) {
     return request('/api/uploads', {
         method: 'POST',
         body: JSON.stringify({ selections }),
+    })
+}
+
+export function preflightBillingGroup(selection) {
+    return request('/api/uploads/preflight', {
+        method: 'POST',
+        body: JSON.stringify({ selections: [selection] }),
     })
 }
 
@@ -109,6 +109,10 @@ export function getAdminUsers() {
     return request('/api/admin/users')
 }
 
+export function deleteAdminUser(id) {
+    return request(`/api/admin/users/${id}`, { method: 'DELETE' })
+}
+
 export function updateAdminUserStatus(id, status) {
     return request(`/api/admin/users/${id}/status`, {
         method: 'PATCH',
@@ -134,6 +138,10 @@ export function removeAdminWarehouse(userId, warehouseId) {
     return request(`/api/admin/users/${userId}/warehouses/${warehouseId}`, { method: 'DELETE' })
 }
 
+export function removeAllAdminWarehouses(userId) {
+    return request(`/api/admin/users/${userId}/warehouses`, { method: 'DELETE' })
+}
+
 export function replaceAdminWarehouse(userId, currentWarehouseId, requestedWarehouseId) {
     return request(`/api/admin/users/${userId}/warehouses/replace`, {
         method: 'POST',
@@ -143,4 +151,11 @@ export function replaceAdminWarehouse(userId, currentWarehouseId, requestedWareh
 
 export function getAccessAuditLogs() {
     return request('/api/admin/audit-logs')
+}
+
+export function createAdminAccount(account) {
+    return request('/api/admin/users', {
+        method: 'POST',
+        body: JSON.stringify(account),
+    })
 }

@@ -32,20 +32,39 @@ public class BillingUploadController {
             @RequestBody UploadRequest request,
             Authentication authentication) {
 
+        requireAuthenticated(authentication);
+        String uploadedBy = authentication.getName();
+        boolean isAdmin = isAdmin(authentication);
+        validateUserSelections(request, uploadedBy, isAdmin);
+        String userRole = isAdmin ? "ADMIN" : "USER";
+
+        return billingUploadService.upload(request, uploadedBy, userRole);
+    }
+
+    @PostMapping("/preflight")
+    public List<UploadPreflightResponse> preflight(
+            @RequestBody UploadRequest request,
+            Authentication authentication) {
+        requireAuthenticated(authentication);
+        validateUserSelections(request, authentication.getName(), isAdmin(authentication));
+        return billingUploadService.preflight(request);
+    }
+
+    private void requireAuthenticated(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new org.springframework.web.server.ResponseStatusException(
                     org.springframework.http.HttpStatus.UNAUTHORIZED,
                     "Authentication is required to upload billings.");
         }
+    }
 
-        String uploadedBy = authentication.getName();
-
-        boolean isAdmin = authentication.getAuthorities().stream()
+    private boolean isAdmin(Authentication authentication) {
+        return authentication.getAuthorities().stream()
                 .anyMatch(authority -> authority.getAuthority().equals("ROLE_ADMIN")
                         || authority.getAuthority().equals("ADMIN"));
+    }
 
-        String userRole = isAdmin ? "ADMIN" : "USER";
-
+    private void validateUserSelections(UploadRequest request, String uploadedBy, boolean isAdmin) {
         if (!isAdmin) {
             boolean hasUnauthorizedSelection = request == null || request.selections() == null
                     || request.selections().stream().anyMatch(selection -> selection == null
@@ -57,8 +76,6 @@ public class BillingUploadController {
                         "One or more selected warehouses are not assigned to this account.");
             }
         }
-
-        return billingUploadService.upload(request, uploadedBy, userRole);
     }
 
     @GetMapping("/failed")

@@ -223,10 +223,6 @@ public class AccountAccessService {
         assertNotSelf(actorId, targetUserId);
         String previousStatus = jdbcTemplate.queryForObject(
                 "SELECT Status FROM [TRUpload].[dbo].[Users] WHERE UserID = ?", String.class, targetUserId);
-        if ("ACTIVE".equals(status) && ("PENDING".equals(previousStatus) || "REJECTED".equals(previousStatus))) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT, "Pending or rejected accounts must be approved through account requests.");
-        }
         jdbcTemplate.update("""
                 UPDATE [TRUpload].[dbo].[Users] SET Status = ?, UpdatedAt = SYSUTCDATETIME()
                 WHERE UserID = ?
@@ -253,6 +249,56 @@ public class AccountAccessService {
         jdbcTemplate.update("INSERT INTO [TRUpload].[dbo].[UserRoles] (UserID, RoleID) VALUES (?, ?)", targetUserId,
                 roleId);
         writeAudit(actorId, "USER_ROLE_CHANGED", "User", targetUserId, "Role set to " + role);
+    }
+
+    @Transactional(transactionManager = "sqlServerTransactionManager")
+    public void deleteUser(long targetUserId, String actorEmail) {
+        long actorId = userId(actorEmail);
+        assertNotSelf(actorId, targetUserId);
+        if (isAdmin(targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Admin accounts cannot be deleted from user management.");
+        }
+
+        jdbcTemplate.update("""
+                INSERT INTO [TRUpload].[dbo].[AuditLogs]
+                    (ActorUserID, ActionType, EntityType, EntityID, Description)
+                VALUES (?, 'USER_DELETED', 'User', ?, 'User account and warehouse access deleted by administrator')
+                """, actorId, targetUserId);
+
+        jdbcTemplate.update("UPDATE [TRUpload].[dbo].[AuditLogs] SET ActorUserID = NULL WHERE ActorUserID = ?",
+                targetUserId);
+        jdbcTemplate.update("UPDATE [TRUpload].[dbo].[AccountRequests] SET ReviewedBy = NULL WHERE ReviewedBy = ?",
+                targetUserId);
+        jdbcTemplate.update(
+                "UPDATE [TRUpload].[dbo].[AccountRequestWarehouses] SET ReviewedBy = NULL WHERE ReviewedBy = ?",
+                targetUserId);
+        jdbcTemplate.update(
+                "UPDATE [TRUpload].[dbo].[WarehouseAccessRequests] SET ReviewedBy = NULL WHERE ReviewedBy = ?",
+                targetUserId);
+        jdbcTemplate.execute(
+                """
+                        IF COL_LENGTH(N'TRUpload.dbo.WarehouseAccessRequests', N'InitiatedBy') IS NOT NULL
+                            EXEC sys.sp_executesql N'UPDATE [TRUpload].[dbo].[WarehouseAccessRequests] SET InitiatedBy = NULL WHERE InitiatedBy = @userId',
+                            N'@userId BIGINT', @userId = ?
+                        """
+                        .formatted(targetUserId));
+        jdbcTemplate.update("UPDATE [TRUpload].[dbo].[UserWarehouses] SET AssignedBy = NULL WHERE AssignedBy = ?",
+                targetUserId);
+
+        jdbcTemplate.update("""
+                DELETE ARW FROM [TRUpload].[dbo].[AccountRequestWarehouses] ARW
+                JOIN [TRUpload].[dbo].[AccountRequests] AR ON AR.AccountRequestID = ARW.AccountRequestID
+                WHERE AR.UserID = ?
+                """, targetUserId);
+        jdbcTemplate.update("DELETE FROM [TRUpload].[dbo].[AccountRequests] WHERE UserID = ?", targetUserId);
+        jdbcTemplate.update("DELETE FROM [TRUpload].[dbo].[WarehouseAccessRequests] WHERE UserID = ?", targetUserId);
+        jdbcTemplate.update("DELETE FROM [TRUpload].[dbo].[UserWarehouses] WHERE UserID = ?", targetUserId);
+        jdbcTemplate.update("DELETE FROM [TRUpload].[dbo].[UserRoles] WHERE UserID = ?", targetUserId);
+        int deleted = jdbcTemplate.update("DELETE FROM [TRUpload].[dbo].[Users] WHERE UserID = ?", targetUserId);
+        if (deleted != 1) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "User account was not found.");
+        }
     }
 
     @Transactional(transactionManager = "sqlServerTransactionManager")
@@ -291,6 +337,23 @@ public class AccountAccessService {
         }
         disableAssignment(targetUserId, warehouseId);
         writeAudit(actorId, "WAREHOUSE_REMOVED", "User", targetUserId, "Warehouse " + warehouseId + " removed");
+    }
+
+    @Transactional(transactionManager = "sqlServerTransactionManager")
+    public void removeAllWarehouses(long targetUserId, String actorEmail) {
+        long actorId = userId(actorEmail);
+        assertNotSelf(actorId, targetUserId);
+        if (isAdmin(targetUserId)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Warehouse assignment controls are not available for admin users.");
+        }
+        int removedCount = jdbcTemplate.update("""
+                UPDATE [TRUpload].[dbo].[UserWarehouses]
+                SET IsActive = 0, UpdatedAt = SYSUTCDATETIME()
+                WHERE UserID = ? AND IsActive = 1
+                """, targetUserId);
+        writeAudit(actorId, "ALL_WAREHOUSES_REMOVED", "User", targetUserId,
+                removedCount + " active warehouse assignment(s) removed");
     }
 
     @Transactional(transactionManager = "sqlServerTransactionManager")

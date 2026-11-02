@@ -8,6 +8,6 @@ public record SignupResponse(
                 String email,
                 String role,
                 LocalDateTime createdDate,
-                long accountRequestId,
+                Long accountRequestId,
                 String status) {
 }

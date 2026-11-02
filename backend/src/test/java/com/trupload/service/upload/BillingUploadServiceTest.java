@@ -70,6 +70,27 @@ class BillingUploadServiceTest {
         }
 
         @Test
+        void preflightReportsMissingRoutesWithoutWritingUploadRecords() {
+                doReturn(List.of()).when(jdbcTemplate).query(
+                                anyString(),
+                                ArgumentMatchers.<RowMapper<BillingUploadService.RouteRecord>>any(),
+                                ArgumentMatchers.<Object[]>any());
+
+                var response = service.preflight(request("CSTRAB", "0101T01"));
+
+                assertEquals(1, response.size());
+                assertEquals("CSTRAB", response.get(0).databaseName());
+                assertEquals("0101T01", response.get(0).routeGroupId());
+                assertEquals(0, response.get(0).routeCount());
+                assertEquals(false, response.get(0).valid());
+                assertTrue(response.get(0).groupReasons().get(0)
+                                .contains("No eligible route records"));
+                verify(jdbcTemplate, org.mockito.Mockito.never()).update(
+                                anyString(), ArgumentMatchers.<Object[]>any());
+                verifyNoInteractions(transactionService, databaseInstanceService);
+        }
+
+        @Test
         void rejectsMissingUsernameAndUnsupportedRoleBeforeDatabaseWrites() {
                 UploadRequest request = request("CSTRAB", "0101T01");
 

@@ -21,6 +21,7 @@ import com.trupload.api.upload.FailedUploadRecord;
 import com.trupload.api.upload.UploadRecordResult;
 import com.trupload.api.upload.UploadRequest;
 import com.trupload.api.upload.UploadResponse;
+import com.trupload.api.upload.UploadPreflightResponse;
 import com.trupload.api.upload.UploadSelection;
 import com.trupload.api.upload.SuccessfulUploadRecord;
 import com.trupload.service.database.DatabaseInstanceService;
@@ -211,30 +212,7 @@ public class BillingUploadService {
                                 }
 
                                 // Validate EVERY route before inserting any route from this group.
-                                List<RouteCheck> checks = new ArrayList<>();
-
-                                for (RouteRecord route : routes) {
-                                        List<String> reasons = new ArrayList<>(
-                                                        validateRoute(route, routeGroupId));
-
-                                        boolean duplicate = route.dispatchDate() != null
-                                                        && route.routeId() != null
-                                                        && existsInUploadedTable(new BillingDuplicateKey(
-                                                                        databaseName, route.routeId(), routeGroupId,
-                                                                        route.dispatchDate()));
-
-                                        if (duplicate) {
-                                                reasons.add(
-                                                                "This RouteId, RouteGroupId, and dispatch date "
-                                                                                + "have already been uploaded.");
-                                        }
-
-                                        boolean dateGapWarning = isDateGapWarning(route, routeGroupId);
-
-                                        checks.add(new RouteCheck(
-                                                        route, List.copyOf(reasons),
-                                                        duplicate, dateGapWarning));
-                                }
+                                List<RouteCheck> checks = validateRoutes(databaseName, routeGroupId, routes);
 
                                 boolean groupHasBlockingError = checks.stream()
                                                 .anyMatch(check -> !check.reasons().isEmpty());
@@ -498,6 +476,148 @@ public class BillingUploadService {
                 return new UploadResponse(
                                 batchId, uploadedCount, failedCount,
                                 List.copyOf(shuttleWarnings), List.copyOf(results));
+        }
+
+        public List<UploadPreflightResponse> preflight(UploadRequest request) {
+                if (request == null || request.selections() == null || request.selections().isEmpty()) {
+                        throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                                        "Select at least one billing group to validate.");
+                }
+
+                LinkedHashSet<UploadSelection> selections = new LinkedHashSet<>(request.selections());
+                List<UploadPreflightResponse> previews = new ArrayList<>();
+
+                for (UploadSelection selection : selections) {
+                        validateSelection(selection);
+                        String databaseName = selection.databaseName().trim();
+                        String routeGroupId = selection.routeGroupId().trim();
+                        boolean shuttle = routeGroupId.toUpperCase(Locale.ROOT).endsWith("S");
+
+                        if (groupExistsInUploadedTable(databaseName, routeGroupId)) {
+                                previews.add(new UploadPreflightResponse(
+                                                databaseName, routeGroupId, 0, false, shuttle,
+                                                List.of("This billing group has already been uploaded."), List.of(),
+                                                List.of()));
+                                continue;
+                        }
+
+                        List<RouteRecord> routes = findRoutes(databaseName, routeGroupId);
+                        if (routes.isEmpty()) {
+                                previews.add(new UploadPreflightResponse(
+                                                databaseName, routeGroupId, 0, false, shuttle,
+                                                List.of("No eligible route records were found for this billing group."),
+                                                List.of(), List.of()));
+                                continue;
+                        }
+
+                        List<RouteCheck> checks = validateRoutes(databaseName, routeGroupId, routes);
+                        boolean valid = checks.stream().allMatch(check -> check.reasons().isEmpty());
+                        String triggeringRoute = checks.stream()
+                                        .filter(check -> !check.reasons().isEmpty())
+                                        .map(check -> check.route().routeId())
+                                        .filter(java.util.Objects::nonNull)
+                                        .findFirst()
+                                        .orElse(null);
+                        List<UploadRecordResult> routeResults = checks.stream().map(check -> {
+                                List<String> reasons = check.reasons();
+                                if (!valid && reasons.isEmpty()) {
+                                        reasons = List.of("Group rejected because route " + triggeringRoute
+                                                        + " failed validation.");
+                                }
+                                return new UploadRecordResult(
+                                                databaseName,
+                                                valid ? withWaveSuffix(routeGroupId) : routeGroupId,
+                                                check.route().routeId(),
+                                                check.route().dispatchDate(),
+                                                valid ? "READY" : "FAILED",
+                                                reasons,
+                                                shuttle);
+                        }).toList();
+
+                        previews.add(new UploadPreflightResponse(
+                                        databaseName, routeGroupId, routes.size(), valid, shuttle,
+                                        valid ? List.of()
+                                                        : List.of(
+                                                                        "Group rejected because one or more routes failed validation."),
+                                        routeResults,
+                                        checks.stream().map(check -> routeValidation(routeGroupId, check)).toList()));
+                }
+
+                return List.copyOf(previews);
+        }
+
+        private UploadPreflightResponse.RouteValidation routeValidation(
+                        String routeGroupId,
+                        RouteCheck check) {
+                RouteRecord route = check.route();
+                String routeId = route.routeId() == null ? "" : route.routeId().trim();
+                boolean weekdayDigitValid = !routeId.isEmpty()
+                                && routeId.charAt(0) >= '1' && routeId.charAt(0) <= '7';
+                boolean dispatchDatePresent = route.dispatchDate() != null;
+                boolean weekdayMatches = weekdayDigitValid && dispatchDatePresent
+                                && routeId.charAt(0) - '0' == route.dispatchDate().getDayOfWeek().getValue();
+                LocalDate referenceDate = route.dispatchDate() == null ? LocalDate.now() : route.dispatchDate();
+                LocalDate groupDate = nearestGroupDate(routeGroupId, referenceDate);
+                boolean groupDateValid = groupDate != null;
+                boolean dispatchNotBeforeGroupDate = groupDateValid && dispatchDatePresent
+                                && !route.dispatchDate().isBefore(groupDate);
+                boolean dispatchWithinWindow = dispatchNotBeforeGroupDate
+                                && ChronoUnit.DAYS.between(groupDate, route.dispatchDate()) <= 3;
+                boolean noDuplicate = !check.duplicate();
+
+                return new UploadPreflightResponse.RouteValidation(
+                                route.routeId(), route.dispatchDate(), List.of(
+                                                new UploadPreflightResponse.Check("Route ID weekday digit",
+                                                                weekdayDigitValid,
+                                                                weekdayDigitValid ? "Route ID begins with 1-7."
+                                                                                : "Route ID must begin with a weekday digit from 1 to 7."),
+                                                new UploadPreflightResponse.Check("Dispatch date present",
+                                                                dispatchDatePresent,
+                                                                dispatchDatePresent ? "Dispatch date is available."
+                                                                                : "DispatchDateTime is missing."),
+                                                new UploadPreflightResponse.Check("Weekday matches dispatch date",
+                                                                weekdayMatches,
+                                                                weekdayMatches ? "Route weekday digit matches the dispatch date."
+                                                                                : "Route weekday digit does not match the dispatch date."),
+                                                new UploadPreflightResponse.Check("Route-group MMDD date",
+                                                                groupDateValid,
+                                                                groupDateValid ? "RouteGroupId begins with a valid MMDD date."
+                                                                                : "RouteGroupId must begin with a valid MMDD date."),
+                                                new UploadPreflightResponse.Check("Dispatch date is not before MMDD",
+                                                                dispatchNotBeforeGroupDate,
+                                                                dispatchNotBeforeGroupDate
+                                                                                ? "Dispatch date is on or after the group date."
+                                                                                : "Dispatch date is before the group date or cannot be checked."),
+                                                new UploadPreflightResponse.Check("Dispatch date within 3 days",
+                                                                dispatchWithinWindow,
+                                                                dispatchWithinWindow
+                                                                                ? "Dispatch date is within the allowed 3-day window."
+                                                                                : "Dispatch date is more than 3 days after the group date or cannot be checked."),
+                                                new UploadPreflightResponse.Check("No existing route duplicate",
+                                                                noDuplicate,
+                                                                noDuplicate ? "Route/date has not been uploaded already."
+                                                                                : "This RouteId, RouteGroupId, and dispatch date already exist.")));
+        }
+
+        private List<RouteCheck> validateRoutes(
+                        String databaseName,
+                        String routeGroupId,
+                        List<RouteRecord> routes) {
+                List<RouteCheck> checks = new ArrayList<>();
+                for (RouteRecord route : routes) {
+                        List<String> reasons = new ArrayList<>(validateRoute(route, routeGroupId));
+                        boolean duplicate = route.dispatchDate() != null
+                                        && route.routeId() != null
+                                        && existsInUploadedTable(new BillingDuplicateKey(
+                                                        databaseName, route.routeId(), routeGroupId,
+                                                        route.dispatchDate()));
+                        if (duplicate) {
+                                reasons.add("This RouteId, RouteGroupId, and dispatch date have already been uploaded.");
+                        }
+                        checks.add(new RouteCheck(route, List.copyOf(reasons), duplicate,
+                                        isDateGapWarning(route, routeGroupId)));
+                }
+                return checks;
         }
 
         public List<FailedUploadRecord> findRecentFailures() {

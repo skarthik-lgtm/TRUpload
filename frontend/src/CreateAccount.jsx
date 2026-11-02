@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { getWarehouses, signup } from './api.js'
+import { createAdminAccount, getWarehouses } from './api.js'
 
-function CreateAccount({ onBackToLogin, onSignupSuccess }) {
+function CreateAccount({ onBackToLogin, onSignupSuccess, embedded = false }) {
     const [form, setForm] = useState({ firstName: '', lastName: '', email: '', username: '', password: '', warehouseIds: [] })
     const [showPassword, setShowPassword] = useState(false)
     const [message, setMessage] = useState('')
@@ -14,17 +14,16 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
             .then((result) => setWarehouses(Array.isArray(result) ? result : []))
             .catch((error) => setWarehouseError(error.message || 'Could not load warehouses.'))
     }, [])
-    console.log(warehouses, "warehouses");
     async function handleSubmit(event) {
         event.preventDefault()
         setMessage('')
         setIsSubmitting(true)
 
         try {
-            const result = await signup(form)
-            setMessage(result.message || 'Registration submitted for administrator review.')
+            const result = await createAdminAccount(form)
+            setMessage(result.message || 'User account created and warehouse access assigned.')
             setForm({ firstName: '', lastName: '', email: '', username: '', password: '', warehouseIds: [] })
-            window.setTimeout(onSignupSuccess, 1800)
+            onSignupSuccess?.(result)
         } catch (requestError) {
             setMessage(requestError.message)
         } finally {
@@ -46,9 +45,9 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
     }
 
     return (
-        <main className="login-page container-fluid p-0">
-            <div className="row g-0 min-vh-100">
-                <section className="login-intro col-lg-6 d-flex flex-column justify-content-between" aria-label="TRUpload introduction">
+        <main className={embedded ? 'admin-create-embedded' : 'login-page container-fluid p-0'}>
+            <div className={embedded ? 'admin-create-layout' : 'row g-0 min-vh-100'}>
+                {!embedded && <section className="login-intro col-lg-6 d-flex flex-column justify-content-between" aria-label="TRUpload introduction">
                     <div className="brand-mark">TR<span>U</span></div>
                     <div className="intro-copy">
                         <p className="eyebrow">Start here</p>
@@ -56,14 +55,14 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
                         <p>Create your TRUpload account and bring your upload workflow into one clear workspace.</p>
                     </div>
                     <p className="intro-footer">Simple workflows. Clear progress.</p>
-                </section>
+                </section>}
 
-                <section className="login-form-panel col-lg-6 d-flex align-items-center justify-content-center">
-                    <div className="login-card w-100">
+                <section className={embedded ? 'admin-create-form-panel' : 'login-form-panel col-lg-6 d-flex align-items-center justify-content-center'}>
+                    <div className={`login-card w-100 ${embedded ? 'admin-create-card' : ''}`}>
                         <div className="card-heading">
-                            <p className="card-kicker">TRUpload</p>
-                            <h2>Create your account</h2>
-                            <p>Set up your account to get started.</p>
+                            <p className="card-kicker">ADMINISTRATION</p>
+                            <h2>Create a user account</h2>
+                            <p>The account is activated immediately, and selected warehouses are assigned.</p>
                         </div>
 
                         <form onSubmit={handleSubmit}>
@@ -93,7 +92,7 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
                                 </div>
                             </div>
                             <fieldset className="mb-3">
-                                <legend className="form-label">Warehouses requested</legend>
+                                <legend className="form-label">Assign warehouses</legend>
                                 {warehouseError && <p className="form-message" role="alert">{warehouseError}</p>}
                                 {!warehouseError && !warehouses.length && <p className="form-message">Loading available warehouses...</p>}
                                 <div className="warehouse-choice-list">
@@ -108,14 +107,13 @@ function CreateAccount({ onBackToLogin, onSignupSuccess }) {
                                 </div>
                             </fieldset>
                             <button className="submit-button btn w-100" type="submit" disabled={isSubmitting || !warehouses.length || !form.warehouseIds.length}>
-                                {isSubmitting ? 'Submitting request...' : 'Submit registration'}
+                                {isSubmitting ? 'Creating user account...' : 'Create user account'}
                             </button>
                             <p className="form-message" aria-live="polite">{message}</p>
                         </form>
 
-                        <div className="signup-prompt">
-                            <span>Already have an account?</span>
-                            <button className="signup-button" type="button" onClick={onBackToLogin}>Sign in</button>
+                        <div className="action-modal-footer">
+                            <button className="modal-secondary-button" type="button" onClick={onBackToLogin}>Cancel</button>
                         </div>
                     </div>
                 </section>

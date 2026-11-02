@@ -84,6 +84,54 @@ public class SignupServiceImpl implements SignupService {
                 "PENDING");
     }
 
+    @Override
+    @Transactional(transactionManager = "sqlServerTransactionManager")
+    public SignupResponse createAdminAccount(SignupRequest request, String actorEmail) {
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        String username = request.username().trim();
+        String firstName = request.firstName().trim();
+        String lastName = request.lastName().trim();
+
+        validateEmail(email);
+        if (signupDao.existsByEmail(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+        }
+        if (signupDao.existsByUsername(username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username is already registered");
+        }
+
+        List<Long> warehouseIds = request.warehouseIds() == null
+                ? List.of()
+                : List.copyOf(new LinkedHashSet<>(request.warehouseIds()));
+        if (warehouseIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Assign at least one warehouse.");
+        }
+        for (Long warehouseId : warehouseIds) {
+            if (warehouseId == null || !signupDao.warehouseExists(warehouseId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A selected warehouse is invalid.");
+            }
+        }
+
+        long actorId = signupDao.findUserIdByEmail(actorEmail);
+        if (actorId == 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Administrator account was not found.");
+        }
+
+        LocalDateTime createdAt = LocalDateTime.now();
+        SignupUser user = signupDao.save(new SignupUser(
+                username, email, firstName, lastName,
+                passwordEncoder.encode(request.password()), createdAt), "ACTIVE");
+        signupDao.assignRole(user.getId(), "USER");
+        for (Long warehouseId : warehouseIds) {
+            signupDao.assignWarehouse(user.getId(), warehouseId, actorId);
+        }
+        signupDao.recordAdminCreatedUser(actorId, user.getId(), warehouseIds.size());
+
+        return new SignupResponse(
+                "User account created and warehouse access assigned",
+                user.getUsername(), user.getEmail(), "USER", createdAt, 0L, "ACTIVE");
+    }
+
     private void validateEmail(String email) {
         if (!EMAIL_PATTERN.matcher(email).matches()) {
             throw new InvalidEmailException("Enter a valid email address");

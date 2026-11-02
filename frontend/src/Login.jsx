@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { login } from './api.js'
 
-function Login({ onLogin, onCreateAccount, onForgotPassword }) {
+function Login({ onLogin, onForgotPassword }) {
     const [showPassword, setShowPassword] = useState(false)
     const [error, setError] = useState('')
     const [isSubmitting, setIsSubmitting] = useState(false)
@@ -75,10 +75,6 @@ function Login({ onLogin, onCreateAccount, onForgotPassword }) {
                         <p className="form-message" aria-live="polite">{error}</p>
                     </form>
 
-                    <div className="signup-prompt">
-                        <span>Don&apos;t have an account?</span>
-                            <button className="signup-button" type="button" onClick={onCreateAccount}>Create an account</button>
-                    </div>
                 </div>
             </section>
             </div>

@@ -6,4 +6,6 @@ import com.trupload.model.auth.signup.SignupResponse;
 public interface SignupService {
 
     SignupResponse signup(SignupRequest request);
+
+    SignupResponse createAdminAccount(SignupRequest request, String actorEmail);
 }
