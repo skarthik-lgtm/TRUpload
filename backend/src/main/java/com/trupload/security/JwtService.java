@@ -1,0 +1,104 @@
+package com.trupload.security;
+
+import java.nio.charset.StandardCharsets;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.Date;
+
+import javax.crypto.SecretKey;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import com.trupload.model.auth.signup.SignupUser;
+
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
+
+@Service
+public class JwtService {
+
+    private final SecretKey signingKey;
+    private final long expirationMs;
+    private final Set<String> revokedTokens = ConcurrentHashMap.newKeySet();
+
+    public JwtService(
+            @Value("${app.jwt.secret}") String secret,
+            @Value("${app.jwt.expiration-ms}") long expirationMs) {
+        if (secret.length() < 32) {
+            throw new IllegalArgumentException("JWT_SECRET must contain at least 32 characters");
+        }
+        this.signingKey = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expirationMs = expirationMs;
+    }
+
+    public String generateToken(SignupUser user) {
+        return generateToken(user, null);
+    }
+
+    public String generateToken(SignupUser user, Long roleId) {
+        return generateToken(user, roleId, Long.valueOf(2).equals(roleId) ? "ADMIN" : "USER");
+    }
+
+    public String generateToken(SignupUser user, Long roleId, String roleName) {
+        Date issuedAt = new Date();
+        var tokenBuilder = Jwts.builder()
+                .subject(user.getEmail())
+                .claim("role", roleName)
+                .issuedAt(issuedAt)
+                .expiration(new Date(issuedAt.getTime() + expirationMs));
+        if (roleId != null) {
+            tokenBuilder.claim("roleId", roleId);
+        }
+        return tokenBuilder.signWith(signingKey).compact();
+    }
+
+    public String extractSubject(String token) {
+        return parseClaims(token).getSubject();
+    }
+
+    public Long extractRoleId(String token) {
+        Object roleId = parseClaims(token).get("roleId");
+        return roleId instanceof Number number ? number.longValue() : null;
+    }
+
+    public String extractRole(String token) {
+        return parseClaims(token).get("role", String.class);
+    }
+
+    public boolean isValid(String token) {
+        try {
+            if (revokedTokens.contains(token)) {
+                return false;
+            }
+            parseClaims(token);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    public void revokeToken(String token) {
+        if (isTokenSignatureValid(token)) {
+            revokedTokens.add(token);
+        }
+    }
+
+    private boolean isTokenSignatureValid(String token) {
+        try {
+            parseClaims(token);
+            return true;
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(signingKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+}

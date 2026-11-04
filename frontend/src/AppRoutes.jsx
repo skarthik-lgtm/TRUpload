@@ -1,0 +1,148 @@
+import { useEffect, useState } from 'react'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import AuditLogs from './AuditLogs.jsx'
+import ForgotPassword from './ForgotPassword.jsx'
+import Login from './Login.jsx'
+import TRUpload from './TRUpload.jsx'
+import { clearAuthToken } from './api.js'
+import AdminAccountManagement from './AdminAccountManagement.jsx'
+
+const SESSION_IDLE_TIMEOUT_MS = 30 * 60 * 1000
+const ACTIVITY_STORAGE_THROTTLE_MS = 30 * 1000
+
+function AppRoutes() {
+    const [user, setUser] = useState(getStoredUser)
+    const navigate = useNavigate()
+    const location = useLocation()
+    const isPreviewMode = new URLSearchParams(window.location.search).get('preview') === 'trupload'
+
+    useEffect(() => {
+        if (!user) {
+            return undefined
+        }
+
+        let idleTimer
+        let lastActivityAt = Number(window.localStorage.getItem('trupload_last_activity')) || Date.now()
+        let lastPersistedActivityAt = lastActivityAt
+
+        function expireSession() {
+            clearAuthToken()
+            setUser(null)
+            navigate('/login', { replace: true })
+        }
+
+        function scheduleExpiry() {
+            window.clearTimeout(idleTimer)
+            const remainingTime = SESSION_IDLE_TIMEOUT_MS - (Date.now() - lastActivityAt)
+
+            if (remainingTime <= 0) {
+                expireSession()
+                return
+            }
+
+            idleTimer = window.setTimeout(expireSession, remainingTime)
+        }
+
+        function recordActivity() {
+            lastActivityAt = Date.now()
+            if (lastActivityAt - lastPersistedActivityAt >= ACTIVITY_STORAGE_THROTTLE_MS) {
+                window.localStorage.setItem('trupload_last_activity', String(lastActivityAt))
+                lastPersistedActivityAt = lastActivityAt
+            }
+            scheduleExpiry()
+        }
+
+        function handleStorageChange(event) {
+            if (event.key === 'trupload_last_activity') {
+                lastActivityAt = Math.max(lastActivityAt, Number(event.newValue) || 0)
+                lastPersistedActivityAt = Math.max(lastPersistedActivityAt, lastActivityAt)
+                scheduleExpiry()
+            } else if (event.key === 'trupload_token' && !event.newValue) {
+                setUser(null)
+                navigate('/login', { replace: true })
+            }
+        }
+
+        const activityEvents = ['pointerdown', 'pointermove', 'keydown', 'touchstart', 'scroll']
+        activityEvents.forEach((eventName) => window.addEventListener(eventName, recordActivity, { passive: true }))
+        window.addEventListener('storage', handleStorageChange)
+        scheduleExpiry()
+
+        return () => {
+            window.clearTimeout(idleTimer)
+            activityEvents.forEach((eventName) => window.removeEventListener(eventName, recordActivity))
+            window.removeEventListener('storage', handleStorageChange)
+        }
+    }, [user, navigate])
+
+    if (isPreviewMode) {
+        return <TRUpload username="Preview User" role="ADMIN" onLogout={() => { window.location.href = '/' }} />
+    }
+
+    if (location.hash) {
+        return <NotFound />
+    }
+
+    function handleLogin(response) {
+        const role = String(response.role || 'USER').toUpperCase()
+        const authenticatedUser = { email: response.email, role }
+        window.localStorage.setItem('trupload_user', JSON.stringify(authenticatedUser))
+        window.localStorage.setItem('trupload_last_activity', String(Date.now()))
+        setUser(authenticatedUser)
+        navigate('/trupload')
+    }
+
+    function handleLogout() {
+        clearAuthToken()
+        setUser(null)
+        navigate('/login')
+    }
+
+    return (
+        <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route
+                path="/login"
+                element={user ? <Navigate to="/trupload" replace /> : <Login onLogin={handleLogin} onForgotPassword={() => navigate('/forgot-password')} />}
+            />
+            <Route
+                path="/forgot-password"
+                element={user ? <Navigate to="/trupload" replace /> : <ForgotPassword onBackToLogin={() => navigate('/login')} />}
+            />
+            <Route
+                path="/trupload"
+                element={user ? <TRUpload username={user.email} role={user.role} onLogout={handleLogout} /> : <Navigate to="/login" replace />}
+            />
+            <Route
+                path="/admin/account-requests"
+                element={user?.role === 'ADMIN' ? <AdminAccountManagement adminEmail={user.email} /> : <Navigate to={user ? '/trupload' : '/login'} replace />}
+            />
+            <Route path="/audit-logs" element={user ? <AuditLogs username={user.email} role={user.role} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
+            <Route path="/trupload/*" element={<NotFound />} />
+            <Route path="/audit-logs/*" element={<NotFound />} />
+            <Route path="*" element={<NotFound />} />
+        </Routes>
+    )
+}
+
+function NotFound() {
+    return <main><h1>Page not found</h1></main>
+}
+
+function getStoredUser() {
+    const token = window.localStorage.getItem('trupload_token')
+    const storedUser = window.localStorage.getItem('trupload_user')
+
+    if (!token || !storedUser) {
+        return null
+    }
+
+    try {
+        return JSON.parse(storedUser)
+    } catch {
+        window.localStorage.removeItem('trupload_user')
+        return null
+    }
+}
+
+export default AppRoutes

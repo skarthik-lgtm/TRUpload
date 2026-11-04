@@ -2,12 +2,10 @@ package com.trupload.model.auth.login;
 
 import java.time.LocalDateTime;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 public record LoginRequest(
-        @NotBlank(message = "Email is required")
-        @Email(message = "Enter a valid email address")
+        @NotBlank(message = "Username or email is required")
         String email,
         @NotBlank(message = "Password is required")
         String password,

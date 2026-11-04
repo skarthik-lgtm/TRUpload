@@ -2,10 +2,15 @@ package com.trupload.dao.auth.login;
 
 import java.util.Optional;
 
+import com.trupload.model.auth.signup.SignupUser;
+
 public interface LoginDao {
 
-    Optional<LoginUser> findByEmail(String email);
+    Optional<SignupUser> findByLoginIdentifier(String identifier);
 
-    record LoginUser(String email, String password) {
-    }
+    Optional<Long> findRoleIdByUserId(Long userId);
+
+    Optional<String> findRoleNameByUserId(Long userId);
+
+    void markLoginNow(Long userId);
 }

@@ -2,9 +2,11 @@ package com.trupload.service.auth.signup;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.regex.Pattern;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -32,10 +34,12 @@ public class SignupServiceImpl implements SignupService {
     }
 
     @Override
-    @Transactional
+    @Transactional(transactionManager = "sqlServerTransactionManager")
     public SignupResponse signup(SignupRequest request) {
         String email = request.email().trim().toLowerCase(Locale.ROOT);
         String username = request.username().trim();
+        String firstName = request.firstName().trim();
+        String lastName = request.lastName().trim();
 
         validateEmail(email);
         if (signupDao.existsByEmail(email)) {
@@ -45,19 +49,87 @@ public class SignupServiceImpl implements SignupService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Username is already registered");
         }
 
+        List<Long> warehouseIds = request.warehouseIds() == null
+                ? List.of()
+                : List.copyOf(new LinkedHashSet<>(request.warehouseIds()));
+        if (warehouseIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Select at least one warehouse.");
+        }
+        for (Long warehouseId : warehouseIds) {
+            if (warehouseId == null || !signupDao.warehouseExists(warehouseId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A selected warehouse is invalid.");
+            }
+        }
+
         SignupUser user = signupDao.save(new SignupUser(
                 username,
                 email,
+                firstName,
+                lastName,
                 passwordEncoder.encode(request.password()),
-                request.role().trim(),
                 LocalDateTime.now()));
+        signupDao.assignRole(user.getId(), "USER");
+        long accountRequestId = signupDao.createAccountRequest(user.getId());
+        for (Long warehouseId : warehouseIds) {
+            signupDao.addRequestedWarehouse(accountRequestId, warehouseId);
+        }
 
         return new SignupResponse(
-                "Account created successfully",
+                "Registration submitted for administrator review",
                 user.getUsername(),
                 user.getEmail(),
-                user.getRole(),
-                user.getCreatedDate());
+                "USER",
+                user.getCreatedDate(),
+                accountRequestId,
+                "PENDING");
+    }
+
+    @Override
+    @Transactional(transactionManager = "sqlServerTransactionManager")
+    public SignupResponse createAdminAccount(SignupRequest request, String actorEmail) {
+        String email = request.email().trim().toLowerCase(Locale.ROOT);
+        String username = request.username().trim();
+        String firstName = request.firstName().trim();
+        String lastName = request.lastName().trim();
+
+        validateEmail(email);
+        if (signupDao.existsByEmail(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email is already registered");
+        }
+        if (signupDao.existsByUsername(username)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username is already registered");
+        }
+
+        List<Long> warehouseIds = request.warehouseIds() == null
+                ? List.of()
+                : List.copyOf(new LinkedHashSet<>(request.warehouseIds()));
+        if (warehouseIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Assign at least one warehouse.");
+        }
+        for (Long warehouseId : warehouseIds) {
+            if (warehouseId == null || !signupDao.warehouseExists(warehouseId)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A selected warehouse is invalid.");
+            }
+        }
+
+        long actorId = signupDao.findUserIdByEmail(actorEmail);
+        if (actorId == 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Administrator account was not found.");
+        }
+
+        LocalDateTime createdAt = LocalDateTime.now();
+        SignupUser user = signupDao.save(new SignupUser(
+                username, email, firstName, lastName,
+                passwordEncoder.encode(request.password()), createdAt), "ACTIVE");
+        signupDao.assignRole(user.getId(), "USER");
+        for (Long warehouseId : warehouseIds) {
+            signupDao.assignWarehouse(user.getId(), warehouseId, actorId);
+        }
+        signupDao.recordAdminCreatedUser(actorId, user.getId(), warehouseIds.size());
+
+        return new SignupResponse(
+                "User account created and warehouse access assigned",
+                user.getUsername(), user.getEmail(), "USER", createdAt, 0L, "ACTIVE");
     }
 
     private void validateEmail(String email) {
