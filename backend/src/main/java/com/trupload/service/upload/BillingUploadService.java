@@ -605,7 +605,7 @@ public class BillingUploadService {
                         List<RouteRecord> routes) {
                 List<RouteCheck> checks = new ArrayList<>();
                 for (RouteRecord route : routes) {
-                        List<String> reasons = new ArrayList<>(validateRoute(route, routeGroupId));
+                        List<String> reasons = new ArrayList<>(validateRoute(databaseName, route, routeGroupId));
                         boolean duplicate = route.dispatchDate() != null
                                         && route.routeId() != null
                                         && existsInUploadedTable(new BillingDuplicateKey(
@@ -679,6 +679,7 @@ public class BillingUploadService {
                                 SELECT
                                     r.ID AS RouteID,
                                     r.GroupID AS RouteGroupID,
+                                    r.CommentField AS CommentField,
                                     CAST(CAST(r.DispatchDateTime AS FLOAT) AS DATETIME) AS DispatchDateTime
                                 FROM [%s].[dbo].[Route] r
                                 WHERE r.GroupID = ?
@@ -693,12 +694,34 @@ public class BillingUploadService {
                         LocalDate dispatchDate = dispatchTimestamp == null
                                         ? null
                                         : dispatchTimestamp.toLocalDateTime().toLocalDate();
-                        return new RouteRecord(rs.getString("RouteID"), dispatchDate);
+                        return new RouteRecord(rs.getString("RouteID"), dispatchDate, rs.getString("CommentField"));
                 }, routeGroupId);
         }
 
-        private List<String> validateRoute(RouteRecord route, String routeGroupId) {
-                return routeValidator.validate(route.routeId(), route.dispatchDate(), routeGroupId);
+        private List<String> validateRoute(String databaseName, RouteRecord route, String routeGroupId) {
+                List<String> reasons = new ArrayList<>(
+                                routeValidator.validate(route.routeId(), route.dispatchDate(), routeGroupId));
+
+                if (routeGroupId != null
+                                && routeGroupId.toUpperCase(Locale.ROOT).endsWith("S")) {
+                        List<String> codes = sqlServerJdbcTemplate.query("""
+                                        SELECT LTRIM(RTRIM(UploadCode)) AS UploadCode
+                                        FROM [TRUpload].[dbo].[Warehouses]
+                                        WHERE LTRIM(RTRIM([database])) = ?
+                                          AND NULLIF(LTRIM(RTRIM(UploadCode)), '') IS NOT NULL
+                                        """, (rs, rowNum) -> rs.getString("UploadCode"), databaseName);
+                        String expectedComment = codes.isEmpty() ? null : "SHUTTLE TO " + codes.get(0);
+                        String actualComment = route.comment() == null ? "" : route.comment().trim();
+                        if (expectedComment == null || !expectedComment.equals(actualComment)) {
+                                reasons.add("CommentField for a shuttle route must be exactly: "
+                                                + (expectedComment == null
+                                                                ? "SHUTTLE TO <warehouse code>"
+                                                                : expectedComment)
+                                                + ".");
+                        }
+                }
+
+                return List.copyOf(reasons);
         }
 
         private LocalDate nearestGroupDate(String routeGroupId, LocalDate dispatchDate) {
@@ -804,7 +827,10 @@ public class BillingUploadService {
                                                 groupDate, route.dispatchDate()) > 3;
         }
 
-        record RouteRecord(String routeId, LocalDate dispatchDate) {
+        record RouteRecord(String routeId, LocalDate dispatchDate, String comment) {
+                RouteRecord(String routeId, LocalDate dispatchDate) {
+                        this(routeId, dispatchDate, null);
+                }
         }
 
         record BillingDuplicateKey(

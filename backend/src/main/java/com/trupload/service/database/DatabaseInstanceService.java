@@ -251,6 +251,7 @@ public class DatabaseInstanceService {
                 SELECT
                     r.ID AS RouteID,
                     r.GroupID AS RouteGroupID,
+                    r.CommentField as Comment,
                     CAST(
                         CAST(r.DispatchDateTime AS FLOAT) AS DATETIME
                     ) AS DispatchDateTime
@@ -266,7 +267,7 @@ public class DatabaseInstanceService {
 
             String routeId = rs.getString("RouteID");
             String groupId = rs.getString("RouteGroupID");
-
+            String comment = rs.getString("Comment");
             java.sql.Timestamp timestamp = rs.getTimestamp("DispatchDateTime");
 
             java.time.LocalDateTime dispatchDateTime = timestamp == null
@@ -305,6 +306,7 @@ public class DatabaseInstanceService {
             return new RouteDetailResponse(
                     routeId,
                     groupId,
+                    comment,
                     dispatchDateTime,
                     expectedDayName,
                     actualDayName,
@@ -466,6 +468,19 @@ public class DatabaseInstanceService {
                                 + " has a dispatch weekday that does not match "
                                 + "the first digit of its RouteID.");
             }
+
+            if (group.routeGroupId != null
+                    && group.routeGroupId.toUpperCase(java.util.Locale.ROOT).endsWith("S")) {
+                String uploadCode = findUploadCode(databaseName);
+                String expectedComment = uploadCode == null ? null : "SHUTTLE TO " + uploadCode;
+                String actualComment = route.comment() == null ? "" : route.comment().trim();
+                if (expectedComment == null || !expectedComment.equals(actualComment)) {
+                    group.validationErrors.add(
+                            "Route " + route.routeId() + " must have CommentField exactly: "
+                                    + (expectedComment == null ? "SHUTTLE TO <warehouse code>" : expectedComment)
+                                    + ".");
+                }
+            }
         }
 
         /*
@@ -505,8 +520,15 @@ public class DatabaseInstanceService {
             long numberOfStops = stopCountsMap.getOrDefault(
                     group.routeGroupId, 0L);
 
+            String groupComment = group.routes.stream()
+                    .map(RouteDetailResponse::comment)
+                    .filter(comment -> comment != null && !comment.isBlank())
+                    .findFirst()
+                    .orElse(null);
+
             result.add(new RouteGroupResponse(
                     group.routeGroupId,
+                    groupComment,
                     group.routes.size(),
                     numberOfStops,
                     numberOfOrders,
@@ -522,6 +544,16 @@ public class DatabaseInstanceService {
         }
 
         return result;
+    }
+
+    private String findUploadCode(String databaseName) {
+        List<String> codes = sqlServerJdbcTemplate.query("""
+                SELECT LTRIM(RTRIM(UploadCode)) AS UploadCode
+                FROM [TRUpload].[dbo].[Warehouses]
+                WHERE LTRIM(RTRIM([database])) = ?
+                  AND NULLIF(LTRIM(RTRIM(UploadCode)), '') IS NOT NULL
+                """, (rs, rowNum) -> rs.getString("UploadCode"), databaseName);
+        return codes.isEmpty() ? null : codes.get(0);
     }
 
     private String weekdayName(Integer weekday) {

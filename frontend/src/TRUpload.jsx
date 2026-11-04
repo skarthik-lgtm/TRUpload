@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck, faChevronDown, faChevronLeft, faChevronRight, faCircleUser, faCloudArrowUp, faCloud, faFile, faFolder, faHouse, faSearch, faSpinner, faTableList, faTriangleExclamation, faXmark, faUndo } from '@fortawesome/free-solid-svg-icons'
 import { useNavigate } from 'react-router-dom'
-import { getDatabaseInstances, getFailedUploads, getSuccessfulUploads, preflightBillingGroup, uploadBillingGroups } from './api.js'
+import { getDatabaseRoutes, getFailedUploads, getMyWarehouses, getSuccessfulUploads, getWarehouses, preflightBillingGroup, uploadBillingGroups } from './api.js'
 
 function formatDispatchDates(routes) {
     return [...new Set(routes
@@ -34,6 +34,7 @@ function TRUpload({ username, role, onLogout }) {
     const [isPreflighting, setIsPreflighting] = useState(false)
     const [validationProgress, setValidationProgress] = useState([])
     const [isUploadSuccessOpen, setIsUploadSuccessOpen] = useState(false)
+    const [isValidationFailureOpen, setIsValidationFailureOpen] = useState(false)
     const [uploadResult, setUploadResult] = useState(null)
     const [isShuttleWarningOpen, setIsShuttleWarningOpen] = useState(false)
     const [isFailedView, setIsFailedView] = useState(false)
@@ -55,49 +56,58 @@ function TRUpload({ username, role, onLogout }) {
     useEffect(() => {
         let isCurrentRequest = true
 
-        async function loadDatabaseInstances() {
-            setIsLoadingGroups(true)
-            setGroupsError('')
-
+        async function loadWarehouseOptions() {
             try {
-                const databases = await getDatabaseInstances()
-                const instances = Array.isArray(databases) ? databases : []
-                console.log('Database instances:', instances);
-                const groups = instances.flatMap(({ databaseName, routeGroups = [] }) =>
-                    routeGroups.map((routeGroup) => ({
-                        id: `${databaseName}:${routeGroup.routeGroupId}`,
-                        groupId: routeGroup.routeGroupId,
-                        databaseName,
-                        totalOrders: routeGroup.numberOfOrders ?? 0,
-                        totalStops: routeGroup.numberOfStops ?? 0,
-                        totalRoutes: routeGroup.numberOfRoutes ?? 0,
-                        status: routeGroup.validationErrors?.length
-                            ? 'Mismatch'
-                            : 'Un-Uploaded',
-                        routes: routeGroup.routes ?? [],
-                    })),
-                );
-                
+                const warehouses = await (isAdmin ? getWarehouses() : getMyWarehouses())
                 if (isCurrentRequest) {
-                    setDatabaseInstances(instances)
-                    setBillingGroups(groups)
+                    setDatabaseInstances(Array.isArray(warehouses) ? warehouses : [])
                 }
             } catch (error) {
-                if (isCurrentRequest) {
-                    setGroupsError(error.message || 'Could not load database instances.')
-                }
-            } finally {
-                if (isCurrentRequest) {
-                    setIsLoadingGroups(false)
-                }
+                if (isCurrentRequest) setGroupsError(error.message || 'Could not load warehouses.')
             }
         }
 
-        loadDatabaseInstances()
+        loadWarehouseOptions()
         return () => { isCurrentRequest = false }
-    }, [loadAttempt])
+    }, [isAdmin, loadAttempt])
 
-    const databaseOptions = [...new Set(databaseInstances.map((instance) => instance.databaseName).filter(Boolean))].sort()
+    useEffect(() => {
+        let isCurrentRequest = true
+
+        async function loadSelectedDatabase() {
+            if (!selectedDatabase) {
+                setBillingGroups([])
+                setIsLoadingGroups(false)
+                return
+            }
+
+            setIsLoadingGroups(true)
+            setGroupsError('')
+            try {
+                const instance = await getDatabaseRoutes(selectedDatabase)
+                const groups = (instance?.routeGroups ?? []).map((routeGroup) => ({
+                    id: `${instance.databaseName}:${routeGroup.routeGroupId}`,
+                    groupId: routeGroup.routeGroupId,
+                    databaseName: instance.databaseName,
+                    totalOrders: routeGroup.numberOfOrders ?? 0,
+                    totalStops: routeGroup.numberOfStops ?? 0,
+                    totalRoutes: routeGroup.numberOfRoutes ?? 0,
+                    status: routeGroup.validationErrors?.length ? 'Mismatch' : 'Un-Uploaded',
+                    routes: routeGroup.routes ?? [],
+                }))
+                if (isCurrentRequest) setBillingGroups(groups)
+            } catch (error) {
+                if (isCurrentRequest) setGroupsError(error.message || 'Could not load the selected database.')
+            } finally {
+                if (isCurrentRequest) setIsLoadingGroups(false)
+            }
+        }
+
+        loadSelectedDatabase()
+        return () => { isCurrentRequest = false }
+    }, [selectedDatabase, loadAttempt])
+
+    const databaseOptions = [...new Set(databaseInstances.map((warehouse) => warehouse.database).filter(Boolean))].sort()
     const normalizedSearch = search.trim().toLowerCase()
     const filteredGroups = billingGroups.filter((group) =>
         (!selectedDatabase || group.databaseName === selectedDatabase)
@@ -132,7 +142,11 @@ function TRUpload({ username, role, onLogout }) {
         }
     }, [])
 
-    function updateSearch(value) { setSearch(value); setPage(1) }
+    function updateSearch(value) {
+        if (!selectedDatabase) return
+        setSearch(value)
+        setPage(1)
+    }
     function toggleGroup(id) { setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]) }
     function toggleVisibleGroups() {
         setSelected((current) => allVisibleSelected
@@ -194,7 +208,14 @@ function TRUpload({ username, role, onLogout }) {
     }
 
     async function confirmPreflightUpload() {
+        const hasValidationFailures = validationProgress.some((item) => item.status === 'FAILED')
         setIsValidationPreviewOpen(false)
+
+        if (hasValidationFailures) {
+            await runUpload()
+            return
+        }
+
         await runUpload()
     }
 
@@ -217,7 +238,11 @@ function TRUpload({ username, role, onLogout }) {
             setBillingGroups((current) => current.filter((group) => !successfulIds.has(group.id)))
             setSelected((current) => current.filter((id) => !successfulIds.has(id)))
             setIsUploadProgressOpen(false)
-            setIsUploadSuccessOpen(true)
+            if ((result.failedCount ?? 0) > 0 || (result.results ?? []).some((record) => record.status === 'FAILED')) {
+                setIsValidationFailureOpen(true)
+            } else {
+                setIsUploadSuccessOpen(true)
+            }
         } catch (error) {
             setIsUploadProgressOpen(false)
             showNotice(error.message || 'Upload validation failed.')
@@ -337,8 +362,8 @@ function TRUpload({ username, role, onLogout }) {
                         <div><h1 style={{ color: isAdmin ? '#12263e' : '#fff' }}>TR Upload</h1><p style={{ color: isAdmin ? '#12263e' : '#fff' }}>Select a source database and choose the billing group(s) to upload.</p></div>
                     </div>
                     <div className="workspace-toolbar d-flex flex-wrap align-items-end gap-3">
-                        <label className="source-select"><span>Source Database</span><select value={selectedDatabase} onChange={(event) => { setSelectedDatabase(event.target.value); setPage(1) }} aria-label="Filter by source database"><option value="">All Databases</option>{databaseOptions.map((database) => <option value={database} key={database}>{database}</option>)}</select></label>
-                        <label className="billing-search"><FontAwesomeIcon icon={faSearch} /><input value={search} onChange={(event) => updateSearch(event.target.value)} placeholder="Search billing group name or number..." aria-label="Search billing groups" />{search && <button type="button" onClick={() => updateSearch('')} aria-label="Clear search"><FontAwesomeIcon icon={faXmark} /></button>}</label>
+                        <label className="source-select"><span>Source Database</span><select value={selectedDatabase} onChange={(event) => { setSelectedDatabase(event.target.value); setPage(1); setSelected([]); setSearch('') }} aria-label="Select source database"><option value="">Select Database</option>{databaseOptions.map((database) => <option value={database} key={database}>{database}</option>)}</select></label>
+                        <label className={`billing-search${selectedDatabase ? '' : ' is-disabled'}`}><FontAwesomeIcon icon={faSearch} /><input value={search} onChange={(event) => updateSearch(event.target.value)} disabled={!selectedDatabase} placeholder={selectedDatabase ? 'Search billing group name or number...' : 'Select a database to search'} aria-label="Search billing groups" />{search && <button type="button" onClick={() => updateSearch('')} disabled={!selectedDatabase} aria-label="Clear search"><FontAwesomeIcon icon={faXmark} /></button>}</label>
                         <button className="upload-action" type="button" onClick={uploadSelected}><FontAwesomeIcon icon={faCloudArrowUp} /> Upload Selected Billings</button>
                         <button className="reset-action" type="button" onClick={resetRouting}><FontAwesomeIcon icon={faUndo} /> Reset Routing</button>
                     </div>
@@ -406,7 +431,7 @@ function TRUpload({ username, role, onLogout }) {
                             </label>)}
                             {isLoadingGroups && <p className="empty-state"><FontAwesomeIcon icon={faSpinner} spin /> Loading database instances...</p>}
                             {!isLoadingGroups && groupsError && <div className="empty-state api-error-state"><p>{groupsError}</p><button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry</button></div>}
-                            {!isLoadingGroups && !groupsError && !visibleGroups.length && <p className="empty-state">{billingGroups.length ? 'No groups match your search.' : 'No database instances were returned.'}</p>}
+                            {!isLoadingGroups && !groupsError && !visibleGroups.length && <p className="empty-state">{!selectedDatabase ? 'Select a source database to view billing groups.' : billingGroups.length ? 'No groups match your search.' : 'No database instances were returned.'}</p>}
                         </div>
                         <div className="billing-footer d-flex align-items-center justify-content-between"><span>Showing {visibleGroups.length ? (currentPage - 1) * pageSize + 1 : 0}-{Math.min(currentPage * pageSize, filteredGroups.length)} of {filteredGroups.length} billing groups</span><div className="pagination d-flex align-items-center gap-2" aria-label="Billing group pages"><button type="button" onClick={() => changePage(currentPage - 1)} disabled={currentPage === 1} aria-label="Previous page"><FontAwesomeIcon icon={faChevronLeft} /></button>{Array.from({ length: pageCount }, (_, index) => index + 1).slice(0, 4).map((number) => <button className={number === currentPage ? 'active' : ''} type="button" key={number} onClick={() => changePage(number)}>{number}</button>)}<button type="button" onClick={() => changePage(currentPage + 1)} disabled={currentPage === pageCount} aria-label="Next page"><FontAwesomeIcon icon={faChevronRight} /></button></div></div>
                         </>}
@@ -463,7 +488,7 @@ function TRUpload({ username, role, onLogout }) {
                     <div className="action-modal-footer validation-preview-footer">
                         <button className="modal-secondary-button" type="button" disabled={isPreflighting} onClick={() => setIsValidationPreviewOpen(false)}>Cancel</button>
                         <button className="modal-primary-button" type="button" disabled={isPreflighting || validationProgress.some((item) => item.status === 'ERROR')} onClick={confirmPreflightUpload}>
-                            {isPreflighting ? 'Validating...' : 'Confirm upload'}
+                            {isPreflighting ? 'Validating...' : validationProgress.some((item) => item.status === 'FAILED') ? 'Continue with validation result' : 'Confirm upload'}
                         </button>
                     </div>
                 </section>
@@ -472,6 +497,17 @@ function TRUpload({ username, role, onLogout }) {
                 <section className="upload-progress-modal">
                     <h2 id="upload-progress-title">Uploading selected billings</h2>
                     <div className="upload-progress-message"><FontAwesomeIcon icon={faSpinner} spin /><span>Applying final checks and recording upload results...</span></div>
+                </section>
+            </div>}
+            {isValidationFailureOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="validation-failure-title">
+                <section className="upload-success-modal">
+                    <div className="upload-success-icon" style={{ background: '#b74747' }}><FontAwesomeIcon icon={faTriangleExclamation} /></div>
+                    <h2 id="validation-failure-title">Upload validation failed</h2>
+                    <p>{uploadResult?.failedCount ?? 0} route record(s) failed validation and were moved to Failed Upload Records. No route data was uploaded for the failed billing groups.</p>
+                    <div className="action-modal-footer">
+                        <button className="modal-secondary-button" type="button" onClick={() => setIsValidationFailureOpen(false)}>Close</button>
+                        <button className="modal-primary-button" type="button" onClick={() => { setIsValidationFailureOpen(false); openFailedRecords() }}>View failed records</button>
+                    </div>
                 </section>
             </div>}
             {isUploadSuccessOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-success-title">

@@ -24,6 +24,7 @@ function AdminAccountManagement({ adminEmail }) {
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [deleteTarget, setDeleteTarget] = useState(null)
     const [clearWarehousesTarget, setClearWarehousesTarget] = useState(null)
+    const [assignmentDivisionFilter, setAssignmentDivisionFilter] = useState('ALL')
     const [loading, setLoading] = useState(true)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState('')
@@ -63,6 +64,15 @@ function AdminAccountManagement({ adminEmail }) {
 
     const currentAdmin = users.find((user) => user.email?.toLowerCase() === adminEmail?.toLowerCase())
     const selectedUser = users.find((user) => user.userId === selectedUserId)
+    const assignmentDivisions = [...new Set(warehouses.map((warehouse) => String(warehouse.division || '').trim()).filter(Boolean))].sort()
+    const assignmentWarehouses = warehouses
+        .filter((warehouse) => assignmentDivisionFilter === 'ALL' || String(warehouse.division || '').trim() === assignmentDivisionFilter)
+        .sort((first, second) => {
+            const firstAssigned = selectedUser?.warehouses.some((item) => item.warehouseId === first.warehouseId) ? 0 : 1
+            const secondAssigned = selectedUser?.warehouses.some((item) => item.warehouseId === second.warehouseId) ? 0 : 1
+            if (firstAssigned !== secondAssigned) return firstAssigned - secondAssigned
+            return String(first.facility || '').localeCompare(String(second.facility || ''))
+        })
     const visibleUsers = users.filter((user) => {
         const matchesStatus = statusFilter === 'ALL' || user.status === statusFilter
         const query = search.trim().toLowerCase()
@@ -98,6 +108,12 @@ function AdminAccountManagement({ adminEmail }) {
         reload()
     }
 
+    function openSelectedUser(user) {
+        const assignedDivision = user.warehouses.find((item) => String(item.division || '').trim())?.division?.trim()
+        setAssignmentDivisionFilter(assignedDivision || 'ALL')
+        setSelectedUserId(user.userId)
+    }
+
     return (
         <main className="account-requests-page admin-account-management">
             <header className="account-page-header">
@@ -130,7 +146,7 @@ function AdminAccountManagement({ adminEmail }) {
                 <section className="admin-user-table" aria-label="User accounts">
                     <div className="admin-user-table-head"><span>User</span><span>Status</span><span>Role</span><span>Warehouse access</span></div>
                     {visibleUsers.map((user) => {
-                        return <button className="admin-user-table-row" type="button" key={user.userId} onClick={() => setSelectedUserId(user.userId)}>
+                        return <button className="admin-user-table-row" type="button" key={user.userId} onClick={() => openSelectedUser(user)}>
                             <span className="admin-user-cell"><strong>{user.firstName} {user.lastName}</strong><small>{user.username} · {user.email}</small></span>
                             <span><i className={`admin-status-dot ${user.status.toLowerCase()}`} />{user.status}</span>
                             <span>{user.role}</span>
@@ -178,9 +194,17 @@ function AdminAccountManagement({ adminEmail }) {
                     {String(selectedUser.role).toUpperCase() === 'USER' && <section className="admin-user-detail-section">
                         <div className="admin-user-section-title"><h3>Warehouse assignments</h3><span>{selectedUser.warehouses.length} active</span></div>
                         {selectedUser.warehouses.length > 0 && <button className="user-assignment-remove remove-all-assignments" type="button" disabled={busy} onClick={() => setClearWarehousesTarget(selectedUser)}>Remove all assignments</button>}
-                        <label className="admin-assign-select">Assign warehouse<select value="" disabled={busy} onChange={(event) => event.target.value && assign(selectedUser, event.target.value)}>
-                            <option value="">Choose a warehouse</option>{warehouses.filter((warehouse) => !selectedUser.warehouses.some((item) => item.warehouseId === warehouse.warehouseId)).map((warehouse) => <option key={warehouse.warehouseId} value={warehouse.warehouseId}>{warehouse.facility} · {warehouse.database} · {warehouse.uploadCode}</option>)}
-                        </select></label>
+                        <div className="admin-assign-filters">
+                            <label className="admin-assign-select">Division<select value={assignmentDivisionFilter} disabled={busy} onChange={(event) => setAssignmentDivisionFilter(event.target.value)}>
+                                <option value="ALL">All divisions</option>{assignmentDivisions.map((division) => <option key={division} value={division}>{division}</option>)}
+                            </select></label>
+                            <label className="admin-assign-select">Assign warehouse<select value="" disabled={busy} onChange={(event) => event.target.value && assign(selectedUser, event.target.value)}>
+                                <option value="">Choose a warehouse</option>{assignmentWarehouses.map((warehouse) => {
+                                    const isAssigned = selectedUser.warehouses.some((item) => item.warehouseId === warehouse.warehouseId)
+                                    return <option key={warehouse.warehouseId} value={isAssigned ? '' : warehouse.warehouseId} disabled={isAssigned}>{warehouse.facility} · {warehouse.database} · {warehouse.uploadCode || 'No upload code'}{isAssigned ? ' · Assigned' : ''}</option>
+                                })}
+                            </select></label>
+                        </div>
                         <div className="admin-staged-warehouse-list">{selectedUser.warehouses.map((item) => <div className="admin-staged-warehouse" key={item.warehouseId}>
                             <span><strong>{item.facility}</strong><small>{item.division || 'No division'} · {item.database} · {item.uploadCode || 'No upload code'}</small></span>
                             <select aria-label={`Replace ${item.facility}`} value="" disabled={busy} onChange={(event) => event.target.value && assign(selectedUser, event.target.value, item.warehouseId)}>
