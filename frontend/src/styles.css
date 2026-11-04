@@ -102,6 +102,9 @@ body { margin: 0; min-width: 320px; }
 .source-select select, .billing-search { width: 100%; height: 48px; border: 1px solid #d1e3f2; border-radius: 7px; color: #214b76; background: #fff; box-shadow: 0 2px 8px rgba(26,72,115,.03); }
 .source-select select { padding: 0 1rem; outline: 0; font: inherit; font-size: .8rem; font-weight: 700; }
 .billing-search { display: flex; align-items: center; padding: 0 .75rem; }
+.billing-search.is-disabled { border-color: #e1e9f1; color: #a4b4c4; background: #edf3f7; cursor: not-allowed; }
+.billing-search.is-disabled input { background: transparent; cursor: not-allowed; }
+.billing-search.is-disabled input::placeholder { color: #9dafc0; }
 .billing-search > svg { margin-right: .7rem; font-size: 1rem; }
 .billing-search input { min-width: 0; flex: 1; border: 0; outline: 0; color: #1a4b7d; font: inherit; font-size: .75rem; }
 .billing-search input::placeholder { color: #8fa9c5; }
@@ -428,6 +431,14 @@ body { margin: 0; min-width: 320px; }
 .warehouse-choice span { display: grid; gap: 3px; }
 .warehouse-choice strong { font-size: 13px; }
 .warehouse-choice small { color: #738592; font-size: 11px; }
+.create-warehouse-filters { display: grid; grid-template-columns: minmax(140px, .7fr) minmax(220px, 1.3fr); gap: 10px; margin-bottom: 10px; }
+.create-warehouse-filters label { display: grid; gap: 5px; color: #627782; font-size: 10px; font-weight: 700; }
+.create-warehouse-filters select { min-height: 38px; padding: 7px 9px; border: 1px solid #ccd9df; border-radius: 4px; color: #304957; background: #fff; font: inherit; font-size: 11px; }
+.create-selected-warehouses { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 10px; }
+.create-selected-warehouses button { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; max-width: 220px; padding: 7px 9px; border: 1px solid #9ccbc8; border-radius: 4px; color: #2e555a; background: #eef8f7; text-align: left; cursor: pointer; }
+.create-selected-warehouses strong { font-size: 11px; }
+.create-selected-warehouses small { grid-column: 1; font-size: 9px; }
+.create-selected-warehouses span { grid-column: 2; grid-row: 1 / 3; color: #8a4f4f; font-size: 16px; }
 .warehouse-access-section { margin-top: 20px; padding: 18px; border-top: 1px solid #dce5eb; background: #fff; }
 .warehouse-access-section h2 { margin: 0 0 12px; color: #203747; font-size: 17px; }
 .warehouse-assignment-list { display: grid; gap: 8px; }
@@ -1533,6 +1544,8 @@ body { margin: 0; min-width: 320px; }
 .admin-user-settings label, .admin-assign-select { display: grid; flex: 1; gap: 5px; color: #627782; font-size: 10px; font-weight: 700; }
 .admin-user-settings select, .admin-assign-select select, .admin-staged-warehouse select { min-height: 34px; padding: 6px 8px; border: 1px solid #ccd9df; border-radius: 4px; color: #304957; background: #fff; font: inherit; font-size: 11px; }
 .admin-assign-select { margin-top: .7rem; }
+.admin-assign-filters { display: grid; grid-template-columns: minmax(140px, .75fr) minmax(220px, 1.25fr); gap: .75rem; margin-top: .7rem; }
+.admin-assign-filters .admin-assign-select { margin-top: 0; }
 .remove-all-assignments { margin-top: .65rem; }
 .user-assignment-remove, .user-delete-button { padding: .45rem .7rem; border: 1px solid #c55252; border-radius: 4px; color: #a63e3e; background: #fff; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
 .user-delete-button { color: #fff; background: #b74747; }
@@ -1553,4 +1566,6 @@ body { margin: 0; min-width: 320px; }
     .admin-staged-warehouse { grid-template-columns: 1fr auto; }
     .admin-staged-warehouse > span:first-child { grid-column: 1 / -1; }
     .admin-user-settings { flex-direction: column; }
+    .admin-assign-filters { grid-template-columns: 1fr; }
+    .create-warehouse-filters { grid-template-columns: 1fr; }
 }

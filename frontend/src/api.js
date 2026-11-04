@@ -3,7 +3,7 @@ async function request(path, options = {}) {
     const response = await fetch(path, {
         headers: {
             'Content-Type': 'application/json',
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(token ? { Authorization: 'Bearer ' + token } : {}),
             ...options.headers,
         },
         ...options,
@@ -27,6 +27,10 @@ export function login(credentials) {
 
 export function getDatabaseInstances() {
     return request('/api/database/instances')
+}
+
+export function getDatabaseRoutes(databaseName) {
+    return request(`/api/database/${encodeURIComponent(databaseName)}/routes`)
 }
 
 export function clearAuthToken() {

@@ -8,6 +8,7 @@ function CreateAccount({ onBackToLogin, onSignupSuccess, embedded = false }) {
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [warehouses, setWarehouses] = useState([])
     const [warehouseError, setWarehouseError] = useState('')
+    const [divisionFilter, setDivisionFilter] = useState('ALL')
 
     useEffect(() => {
         getWarehouses()
@@ -23,6 +24,7 @@ function CreateAccount({ onBackToLogin, onSignupSuccess, embedded = false }) {
             const result = await createAdminAccount(form)
             setMessage(result.message || 'User account created and warehouse access assigned.')
             setForm({ firstName: '', lastName: '', email: '', username: '', password: '', warehouseIds: [] })
+            setDivisionFilter('ALL')
             onSignupSuccess?.(result)
         } catch (requestError) {
             setMessage(requestError.message)
@@ -43,6 +45,11 @@ function CreateAccount({ onBackToLogin, onSignupSuccess, embedded = false }) {
                 : [...current.warehouseIds, id],
         }))
     }
+
+    const divisions = [...new Set(warehouses.map((warehouse) => String(warehouse.division || '').trim()).filter(Boolean))].sort()
+    const filteredWarehouses = warehouses.filter((warehouse) =>
+        divisionFilter === 'ALL' || String(warehouse.division || '').trim() === divisionFilter)
+    const selectedWarehouses = warehouses.filter((warehouse) => form.warehouseIds.includes(warehouse.warehouseId))
 
     return (
         <main className={embedded ? 'admin-create-embedded' : 'login-page container-fluid p-0'}>
@@ -95,16 +102,34 @@ function CreateAccount({ onBackToLogin, onSignupSuccess, embedded = false }) {
                                 <legend className="form-label">Assign warehouses</legend>
                                 {warehouseError && <p className="form-message" role="alert">{warehouseError}</p>}
                                 {!warehouseError && !warehouses.length && <p className="form-message">Loading available warehouses...</p>}
-                                <div className="warehouse-choice-list">
-                                    {warehouses.map((warehouse) => <label className="warehouse-choice" key={warehouse.warehouseId}>
-                                        <input
-                                            type="checkbox"
-                                            checked={form.warehouseIds.includes(warehouse.warehouseId)}
-                                            onChange={() => toggleWarehouse(warehouse.warehouseId)}
-                                        />
-                                        <span><strong>{warehouse.facility}</strong><small>{warehouse.division || 'Unassigned division'} · {warehouse.database} · {warehouse.uploadCode}</small></span>
-                                    </label>)}
-                                </div>
+                                {!warehouseError && warehouses.length > 0 && <>
+                                    <div className="create-warehouse-filters">
+                                        <label>Division<select value={divisionFilter} onChange={(event) => setDivisionFilter(event.target.value)}>
+                                            <option value="ALL">All divisions</option>{divisions.map((division) => <option key={division} value={division}>{division}</option>)}
+                                        </select></label>
+                                        <label>Warehouse<select value="" onChange={(event) => {
+                                            const warehouseId = Number(event.target.value)
+                                            if (warehouseId && !form.warehouseIds.includes(warehouseId)) toggleWarehouse(warehouseId)
+                                        }}>
+                                            <option value="">Choose a warehouse to add</option>{filteredWarehouses.map((warehouse) => <option key={warehouse.warehouseId} value={warehouse.warehouseId} disabled={form.warehouseIds.includes(warehouse.warehouseId)}>{warehouse.facility} · {warehouse.database} · {warehouse.uploadCode || 'No upload code'}{form.warehouseIds.includes(warehouse.warehouseId) ? ' · Selected' : ''}</option>)}
+                                        </select></label>
+                                    </div>
+                                    {selectedWarehouses.length > 0 && <div className="create-selected-warehouses" aria-label="Selected warehouses">
+                                        {selectedWarehouses.map((warehouse) => <button type="button" key={warehouse.warehouseId} onClick={() => toggleWarehouse(warehouse.warehouseId)} title="Remove warehouse">
+                                            <strong>{warehouse.facility}</strong><small>{warehouse.division || 'Unassigned division'} · {warehouse.database}</small><span aria-hidden="true">×</span>
+                                        </button>)}
+                                    </div>}
+                                    <div className="warehouse-choice-list">
+                                        {filteredWarehouses.map((warehouse) => <label className="warehouse-choice" key={warehouse.warehouseId}>
+                                            <input
+                                                type="checkbox"
+                                                checked={form.warehouseIds.includes(warehouse.warehouseId)}
+                                                onChange={() => toggleWarehouse(warehouse.warehouseId)}
+                                            />
+                                            <span><strong>{warehouse.facility}</strong><small>{warehouse.division || 'Unassigned division'} · {warehouse.database} · {warehouse.uploadCode || 'No upload code'}</small></span>
+                                        </label>)}
+                                    </div>
+                                </>}
                             </fieldset>
                             <button className="submit-button btn w-100" type="submit" disabled={isSubmitting || !warehouses.length || !form.warehouseIds.length}>
                                 {isSubmitting ? 'Creating user account...' : 'Create user account'}
