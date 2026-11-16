@@ -21,7 +21,7 @@ public class WebConfig implements WebMvcConfigurer {
     // .toArray(String[]::new);
     // }
     public WebConfig(
-            @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,http://10.231.0.132:5173,http://34.86.115.252:5173}") String origins) {
+            @Value("${app.cors.allowed-origins:http://localhost:5173,http://127.0.0.1:5173,http://localhost:8080,http://127.0.0.1:8080}") String origins) {
         this.allowedOrigins = Arrays.stream(origins.split(","))
                 .map(String::trim)
                 .filter(origin -> !origin.isEmpty())
