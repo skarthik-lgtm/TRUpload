@@ -232,7 +232,7 @@ function TRUpload({ username, role, onLogout }) {
                         record.databaseName === group.databaseName
                         && record.routeGroupId.replace(/wave$/i, '') === group.groupId.replace(/wave$/i, ''))
                     return groupResults.length > 0
-                        && groupResults.every((record) => record.status === 'UPLOADED')
+                        && groupResults.every((record) => record.status === 'RTR_GENERATED')
                 })
                 .map((group) => group.id))
             setBillingGroups((current) => current.filter((group) => !successfulIds.has(group.id)))
@@ -245,7 +245,7 @@ function TRUpload({ username, role, onLogout }) {
             }
         } catch (error) {
             setIsUploadProgressOpen(false)
-            showNotice(error.message || 'Upload validation failed.')
+            showNotice(error.message || 'RTR generation failed.')
         }
     }
 
@@ -444,7 +444,7 @@ function TRUpload({ username, role, onLogout }) {
                 <section className="action-modal shuttle-warning-modal" role="dialog" aria-modal="true" aria-labelledby="shuttle-warning-title">
                     <div className="action-modal-header"><div className="action-modal-icon shuttle-warning-icon"><FontAwesomeIcon icon={faTriangleExclamation} /></div></div>
                     <h2 id="shuttle-warning-title">Shuttle delivery warning</h2>
-                    <p>These billing groups are marked for warehouse delivery rather than store delivery. They can still be uploaded.</p>
+                    <p>These billing groups are marked for warehouse delivery rather than store delivery. They can still generate RTR files.</p>
                     <ul className="shuttle-warning-list">{shuttleGroups.map((group) => <li key={group.id}><strong>{group.databaseName} / {group.groupId}</strong><span>{group.routes.length ? group.routes.map((route) => `${route.routeId} · ${String(route.dispatchDateTime || 'Date unavailable').slice(0, 10)}`).join(' | ') : `${group.totalRoutes} routes · ${group.totalOrders} orders · ${group.totalStops} stops`}</span></li>)}</ul>
                     <div className="action-modal-footer">
                         <button className="modal-secondary-button" type="button" onClick={() => setIsShuttleWarningOpen(false)}>Cancel</button>
@@ -488,22 +488,22 @@ function TRUpload({ username, role, onLogout }) {
                     <div className="action-modal-footer validation-preview-footer">
                         <button className="modal-secondary-button" type="button" disabled={isPreflighting} onClick={() => setIsValidationPreviewOpen(false)}>Cancel</button>
                         <button className="modal-primary-button" type="button" disabled={isPreflighting || validationProgress.some((item) => item.status === 'ERROR')} onClick={confirmPreflightUpload}>
-                            {isPreflighting ? 'Validating...' : validationProgress.some((item) => item.status === 'FAILED') ? 'Continue with validation result' : 'Confirm upload'}
+                            {isPreflighting ? 'Validating...' : validationProgress.some((item) => item.status === 'FAILED') ? 'Continue with validation result' : 'Generate RTR files'}
                         </button>
                     </div>
                 </section>
             </div>}
             {isUploadProgressOpen && <div className="upload-progress-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-progress-title">
                 <section className="upload-progress-modal">
-                    <h2 id="upload-progress-title">Uploading selected billings</h2>
-                    <div className="upload-progress-message"><FontAwesomeIcon icon={faSpinner} spin /><span>Applying final checks and recording upload results...</span></div>
+                    <h2 id="upload-progress-title">Generating RTR files</h2>
+                    <div className="upload-progress-message"><FontAwesomeIcon icon={faSpinner} spin /><span>Applying final checks and creating RTR files on the configured server...</span></div>
                 </section>
             </div>}
             {isValidationFailureOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="validation-failure-title">
                 <section className="upload-success-modal">
                     <div className="upload-success-icon" style={{ background: '#b74747' }}><FontAwesomeIcon icon={faTriangleExclamation} /></div>
-                    <h2 id="validation-failure-title">Upload validation failed</h2>
-                    <p>{uploadResult?.failedCount ?? 0} route record(s) failed validation and were moved to Failed Upload Records. No route data was uploaded for the failed billing groups.</p>
+                    <h2 id="validation-failure-title">RTR generation failed</h2>
+                    <p>{uploadResult?.failedCount ?? 0} route record(s) failed validation or RTR generation and were moved to Failed Upload Records. No billing-route rows were uploaded.</p>
                     <div className="action-modal-footer">
                         <button className="modal-secondary-button" type="button" onClick={() => setIsValidationFailureOpen(false)}>Close</button>
                         <button className="modal-primary-button" type="button" onClick={() => { setIsValidationFailureOpen(false); openFailedRecords() }}>View failed records</button>
@@ -513,8 +513,9 @@ function TRUpload({ username, role, onLogout }) {
             {isUploadSuccessOpen && <div className="upload-success-backdrop" role="dialog" aria-modal="true" aria-labelledby="upload-success-title">
                 <section className="upload-success-modal">
                     <div className="upload-success-icon"><FontAwesomeIcon icon={faCheck} /></div>
-                    <h2 id="upload-success-title">Upload complete</h2>
-                    <p>{uploadResult?.uploadedCount ?? 0} route record(s) uploaded; {uploadResult?.failedCount ?? 0} failed. Successful groups were removed from the list; failed groups remain available to retry.</p>
+                    <h2 id="upload-success-title">RTR generation complete</h2>
+                    <p>{uploadResult?.generatedCount ?? 0} route record(s) included in generated RTR files; {uploadResult?.failedCount ?? 0} failed. Billing records were not written to the uploaded-billing table.</p>
+                    {uploadResult?.generatedFiles?.length > 0 && <ul className="generated-rtr-files">{uploadResult.generatedFiles.map((filePath) => <li key={filePath}>{filePath}</li>)}</ul>}
                     <div className="action-modal-footer">
                         {uploadResult?.failedCount > 0 && <button className="modal-secondary-button" type="button" onClick={() => { closeUploadResult(); openFailedRecords() }}>View failed records</button>}
                         <button className="modal-primary-button" type="button" onClick={closeUploadResult}>OK</button>

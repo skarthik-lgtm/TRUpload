@@ -13,6 +13,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -36,7 +37,7 @@ import org.springframework.web.server.ResponseStatusException;
 import com.trupload.api.upload.UploadRequest;
 import com.trupload.api.upload.UploadSelection;
 import com.trupload.service.database.DatabaseInstanceService;
-import org.springframework.dao.DuplicateKeyException;
+import com.trupload.service.RTR.RtRGenerationService;
 
 @ExtendWith(MockitoExtension.class)
 class BillingUploadServiceTest {
@@ -45,7 +46,7 @@ class BillingUploadServiceTest {
         private JdbcTemplate jdbcTemplate;
 
         @Mock
-        private BillingGroupTransactionService transactionService;
+        private RtRGenerationService rtrGenerationService;
 
         @Mock
         private DatabaseInstanceService databaseInstanceService;
@@ -54,7 +55,7 @@ class BillingUploadServiceTest {
 
         @BeforeEach
         void setUp() {
-                service = new BillingUploadService(jdbcTemplate, transactionService, databaseInstanceService);
+                service = new BillingUploadService(jdbcTemplate, databaseInstanceService, rtrGenerationService);
                 lenient().when(jdbcTemplate.queryForObject(
                                 contains("SELECT CASE WHEN EXISTS"), eq(Integer.class),
                                 any(), any(), any()))
@@ -66,7 +67,7 @@ class BillingUploadServiceTest {
                 assertThrows(ResponseStatusException.class, () -> service.upload(null, "user@example.com", "USER"));
                 assertThrows(ResponseStatusException.class,
                                 () -> service.upload(new UploadRequest(List.of()), "user@example.com", "USER"));
-                verifyNoInteractions(jdbcTemplate, transactionService, databaseInstanceService);
+                verifyNoInteractions(jdbcTemplate, rtrGenerationService, databaseInstanceService);
         }
 
         @Test
@@ -87,7 +88,7 @@ class BillingUploadServiceTest {
                                 .contains("No eligible route records"));
                 verify(jdbcTemplate, org.mockito.Mockito.never()).update(
                                 anyString(), ArgumentMatchers.<Object[]>any());
-                verifyNoInteractions(transactionService, databaseInstanceService);
+                verifyNoInteractions(rtrGenerationService, databaseInstanceService);
         }
 
         @Test
@@ -98,7 +99,7 @@ class BillingUploadServiceTest {
                 assertThrows(ResponseStatusException.class,
                                 () -> service.upload(request, "user@example.com", "OPERATOR"));
 
-                verifyNoInteractions(jdbcTemplate, transactionService, databaseInstanceService);
+                verifyNoInteractions(jdbcTemplate, rtrGenerationService, databaseInstanceService);
         }
 
         @Test
@@ -107,7 +108,7 @@ class BillingUploadServiceTest {
 
                 assertThrows(ResponseStatusException.class, () -> service.upload(request, "user@example.com", "USER"));
 
-                verifyNoInteractions(jdbcTemplate, transactionService, databaseInstanceService);
+                verifyNoInteractions(jdbcTemplate, rtrGenerationService, databaseInstanceService);
         }
 
         @Test
@@ -142,7 +143,7 @@ class BillingUploadServiceTest {
 
                 var response = service.upload(request("CSTRAB", "0216Y16"), "user@example.com", "USER");
 
-                assertEquals(0, response.uploadedCount());
+                assertEquals(0, response.generatedCount());
                 assertEquals(1, response.failedCount());
                 assertEquals(1, response.results().size());
                 assertEquals("0216Y16", response.results().get(0).routeGroupId());
@@ -157,7 +158,7 @@ class BillingUploadServiceTest {
                                 anyString(),
                                 ArgumentMatchers.<RowMapper<BillingUploadService.RouteRecord>>any(),
                                 ArgumentMatchers.<Object[]>any());
-                verifyNoInteractions(transactionService);
+                verifyNoInteractions(rtrGenerationService);
         }
 
         @Test
@@ -190,7 +191,7 @@ class BillingUploadServiceTest {
                 verify(jdbcTemplate).update(contains("INSERT INTO [TRUpload].[dbo].[UploadFailedBilling]"),
                                 persistedParameters.capture());
                 assertEquals(String.join("; ", response.results().get(0).reasons()), persistedParameters.getValue()[5]);
-                verifyNoInteractions(transactionService);
+                verifyNoInteractions(rtrGenerationService);
         }
 
         @Test
@@ -224,7 +225,7 @@ class BillingUploadServiceTest {
                                 "ADMIN");
 
                 // Both routes must fail because the group is rejected as a whole.
-                assertEquals(0, response.uploadedCount());
+                assertEquals(0, response.generatedCount());
                 assertEquals(2, response.failedCount());
                 assertEquals(2, response.results().size());
 
@@ -237,7 +238,7 @@ class BillingUploadServiceTest {
                                 .anyMatch(reason -> reason.contains("Group rejected")));
 
                 // No successful billing transaction should be attempted.
-                verifyNoInteractions(transactionService);
+                verifyNoInteractions(rtrGenerationService);
 
                 // Both routes should have failure records persisted.
                 verify(jdbcTemplate, times(2)).update(
@@ -251,11 +252,11 @@ class BillingUploadServiceTest {
 
                 verify(jdbcTemplate).update(
                                 contains("UPDATE [TRUpload].[dbo].[UploadBatch]"),
-                                eq("FAILED"), eq(0), eq(2), eq(0), any());
+                                eq("FAILED"), eq(2), eq(0), any());
         }
 
         @Test
-        void recordsGroupFailuresWhenTransactionalInsertThrowsDuplicateKeyException() {
+        void recordsGroupFailuresWhenRemoteRtrGenerationFails() {
                 LocalDate dispatchDate = LocalDate.of(2024, 1, 1);
 
                 doReturn(List.of(
@@ -271,29 +272,20 @@ class BillingUploadServiceTest {
                                 eq(Long.class), any(), any(), any()))
                                 .thenReturn(102L);
 
-                // The initial duplicate checks find no existing records.
-                // The checks performed by the exception handler also find none,
-                // so the failure reason identifies a group-level insert conflict.
                 when(jdbcTemplate.queryForObject(
                                 contains("SELECT COUNT(*)"),
                                 eq(Integer.class), any(), any(), any(), any(), any()))
                                 .thenReturn(0);
 
-                when(transactionService.insertSuccessfulGroup(
-                                eq(102L),
-                                eq("CSTRAB"),
-                                eq("0101T01"),
-                                eq("admin@example.com"),
-                                eq(false),
-                                ArgumentMatchers.<List<BillingGroupTransactionService.RouteToUpload>>any()))
-                                .thenThrow(new DuplicateKeyException("Simulated duplicate-key conflict"));
+                when(rtrGenerationService.generate("CSTRAB", "0101T01", "admin@example.com"))
+                                .thenThrow(new IllegalStateException("WinRM is unavailable."));
 
                 var response = service.upload(
                                 request("CSTRAB", "0101T01"),
                                 "admin@example.com",
                                 "ADMIN");
 
-                assertEquals(0, response.uploadedCount());
+                assertEquals(0, response.generatedCount());
                 assertEquals(2, response.failedCount());
                 assertEquals(2, response.results().size());
 
@@ -302,15 +294,9 @@ class BillingUploadServiceTest {
 
                 assertTrue(response.results().stream()
                                 .allMatch(result -> result.reasons().stream()
-                                                .anyMatch(reason -> reason.contains("duplicate conflict"))));
+                                                .anyMatch(reason -> reason.contains("WinRM is unavailable"))));
 
-                verify(transactionService, times(1)).insertSuccessfulGroup(
-                                eq(102L),
-                                eq("CSTRAB"),
-                                eq("0101T01"),
-                                eq("admin@example.com"),
-                                eq(false),
-                                ArgumentMatchers.<List<BillingGroupTransactionService.RouteToUpload>>any());
+                verify(rtrGenerationService).generate("CSTRAB", "0101T01", "admin@example.com");
 
                 verify(jdbcTemplate, times(2)).update(
                                 contains("INSERT INTO [TRUpload].[dbo].[UploadFailedBilling]"),
@@ -322,7 +308,7 @@ class BillingUploadServiceTest {
 
                 verify(jdbcTemplate).update(
                                 contains("UPDATE [TRUpload].[dbo].[UploadBatch]"),
-                                eq("FAILED"), eq(0), eq(2), eq(0), any());
+                                eq("FAILED"), eq(2), eq(0), any());
         }
 
         @Test
@@ -343,10 +329,8 @@ class BillingUploadServiceTest {
                 }).when(jdbcTemplate).query(anyString(),
                                 ArgumentMatchers.<RowMapper<BillingUploadService.RouteRecord>>any(),
                                 ArgumentMatchers.<Object[]>any());
-                when(transactionService.insertSuccessfulGroup(
-                                eq(202L), eq("CSTRAB"), eq("0102T01"), eq("admin@example.com"),
-                                eq(false), anyList()))
-                                .thenReturn(new BillingGroupTransactionService.GroupInsertResult("SUCCESS", 1, 0));
+                when(rtrGenerationService.generate("CSTRAB", "0102T01", "admin@example.com"))
+                                .thenReturn("D:\\RTE\\0102T01.rtr");
 
                 var response = service.upload(
                                 new UploadRequest(List.of(
@@ -354,18 +338,23 @@ class BillingUploadServiceTest {
                                                 new UploadSelection("CSTRAB", "0102T01"))),
                                 "admin@example.com", "ADMIN");
 
-                assertEquals(1, response.uploadedCount());
+                assertEquals(1, response.generatedCount());
                 assertEquals(1, response.failedCount());
                 assertEquals(2, response.results().size());
                 assertEquals("FAILED", response.results().get(0).status());
-                assertEquals("UPLOADED", response.results().get(1).status());
-                assertEquals("0102T01wave", response.results().get(1).routeGroupId());
+                assertEquals("RTR_GENERATED", response.results().get(1).status());
+                assertEquals("0102T01", response.results().get(1).routeGroupId());
+                assertEquals(List.of("D:\\RTE\\0102T01.rtr"), response.generatedFiles());
 
                 verify(jdbcTemplate).update(contains("UPDATE [TRUpload].[dbo].[UploadBatch]"),
-                                eq("PARTIALLY_FAILED"), eq(1), eq(1), any(), any());
-                verify(transactionService).insertSuccessfulGroup(
-                                eq(202L), eq("CSTRAB"), eq("0102T01"), eq("admin@example.com"),
-                                eq(false), anyList());
+                                eq("PARTIALLY_FAILED"), eq(1), any(), any());
+                verify(rtrGenerationService).generate("CSTRAB", "0102T01", "admin@example.com");
+                verify(jdbcTemplate, never()).update(
+                                contains("INSERT INTO [TRUpload].[dbo].[UploadedBilling]"),
+                                ArgumentMatchers.<Object[]>any());
+                verify(jdbcTemplate, never()).update(
+                                contains("SET GroupID = CONCAT"),
+                                ArgumentMatchers.<Object[]>any());
         }
 
         @Test
@@ -410,8 +399,8 @@ class BillingUploadServiceTest {
                 verify(jdbcTemplate).update(contains("UPDATE [TRUpload].[dbo].[UploadGroupResult]"),
                                 contains("Unexpected upload processing error"), eq(301L));
                 verify(jdbcTemplate).update(contains("UPDATE [TRUpload].[dbo].[UploadBatch]"),
-                                eq(0), eq(0), eq(0), any());
-                verifyNoInteractions(transactionService);
+                                eq(0), eq(0), any());
+                verifyNoInteractions(rtrGenerationService);
         }
 
         @Test

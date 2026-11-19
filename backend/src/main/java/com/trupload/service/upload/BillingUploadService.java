@@ -11,7 +11,6 @@ import java.util.UUID;
 import java.util.regex.Pattern;
 
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -25,6 +24,7 @@ import com.trupload.api.upload.UploadPreflightResponse;
 import com.trupload.api.upload.UploadSelection;
 import com.trupload.api.upload.SuccessfulUploadRecord;
 import com.trupload.service.database.DatabaseInstanceService;
+import com.trupload.service.RTR.RtRGenerationService;
 import jakarta.annotation.PostConstruct;
 
 @Service
@@ -32,17 +32,17 @@ public class BillingUploadService {
 
         private static final Pattern SAFE_DATABASE_NAME = Pattern.compile("CSTR[A-Za-z0-9_]*");
         private final JdbcTemplate sqlServerJdbcTemplate;
-        private final BillingGroupTransactionService billingGroupTransactionService;
         private final DatabaseInstanceService databaseInstanceService;
+        private final RtRGenerationService rtrGenerationService;
         private final BillingRouteValidator routeValidator = new BillingRouteValidator();
 
         public BillingUploadService(
                         @Qualifier("sqlServerJdbcTemplate") JdbcTemplate sqlServerJdbcTemplate,
-                        BillingGroupTransactionService billingGroupTransactionService,
-                        DatabaseInstanceService databaseInstanceService) {
+                        DatabaseInstanceService databaseInstanceService,
+                        RtRGenerationService rtrGenerationService) {
                 this.sqlServerJdbcTemplate = sqlServerJdbcTemplate;
-                this.billingGroupTransactionService = billingGroupTransactionService;
                 this.databaseInstanceService = databaseInstanceService;
+                this.rtrGenerationService = rtrGenerationService;
         }
 
         @PostConstruct
@@ -117,8 +117,9 @@ public class BillingUploadService {
 
                 List<UploadRecordResult> results = new ArrayList<>();
                 LinkedHashSet<String> shuttleWarnings = new LinkedHashSet<>();
+                List<String> generatedFiles = new ArrayList<>();
 
-                int uploadedCount = 0;
+                int generatedCount = 0;
                 int failedCount = 0;
                 int warningCount = 0;
                 long activeGroupResultId = 0;
@@ -290,109 +291,36 @@ public class BillingUploadService {
                                         continue;
                                 }
 
+                                String outputFilePath;
                                 try {
-                                        // Convert the already-validated routes into the input
-                                        // expected by the transactional service.
-                                        List<BillingGroupTransactionService.RouteToUpload> routesToUpload = checks
-                                                        .stream()
-                                                        .map(check -> new BillingGroupTransactionService.RouteToUpload(
-                                                                        check.route().routeId(),
-                                                                        check.route().dispatchDate(),
-                                                                        check.dateGapWarning()))
-                                                        .toList();
-
-                                        // This call crosses the Spring service boundary.
-                                        // All billing inserts and the group's SUCCESS status
-                                        // are committed together, or rolled back together.
-                                        BillingGroupTransactionService.GroupInsertResult insertResult = billingGroupTransactionService
-                                                        .insertSuccessfulGroup(
-                                                                        groupResultId,
-                                                                        databaseName,
-                                                                        routeGroupId,
-                                                                        uploadedBy,
-                                                                        shuttle,
-                                                                        routesToUpload);
-
-                                        // Add response records only after the transactional method
-                                        // returns successfully.
-                                        for (RouteCheck check : checks) {
-                                                RouteRecord route = check.route();
-
-                                                List<String> warnings = new ArrayList<>();
-
-                                                if (shuttle) {
-                                                        warnings.add("Shuttle delivery (warehouse destination).");
-                                                }
-
-                                                if (check.dateGapWarning()) {
-                                                        warnings.add(
-                                                                        "Dispatch date is more than 3 days after "
-                                                                                        + "the MMDD date in RouteGroupId.");
-                                                }
-
-                                                results.add(new UploadRecordResult(
-                                                                databaseName,
-                                                                withWaveSuffix(routeGroupId),
-                                                                route.routeId(),
-                                                                route.dispatchDate(),
-                                                                "UPLOADED",
-                                                                List.copyOf(warnings),
-                                                                shuttle));
-                                        }
-
-                                        uploadedCount += insertResult.uploadedCount();
-                                        warningCount += insertResult.warningCount();
-
-                                } catch (DuplicateKeyException duplicateKey) {
-
-                                        // The transactional service has thrown the exception.
-                                        // Spring rolls back its transaction before control reaches here.
+                                        outputFilePath = rtrGenerationService.generate(
+                                                        databaseName, routeGroupId, uploadedBy);
+                                } catch (RuntimeException generationFailure) {
+                                        String reason = "RTR generation failed: "
+                                                        + safeFailureMessage(generationFailure);
                                         int groupFailedCount = 0;
-
                                         for (RouteCheck check : checks) {
                                                 RouteRecord route = check.route();
-
-                                                boolean duplicate = route.dispatchDate() != null
-                                                                && route.routeId() != null
-                                                                && existsInUploadedTable(new BillingDuplicateKey(
-                                                                                databaseName, route.routeId(),
-                                                                                routeGroupId, route.dispatchDate()));
-
-                                                String reason = duplicate
-                                                                ? "This RouteId, RouteGroupId, and dispatch date "
-                                                                                + "have already been uploaded."
-                                                                : "Group rejected because another route could not "
-                                                                                + "be inserted due to a duplicate conflict.";
-
+                                                boolean weekdayValid = !check.reasons().stream()
+                                                                .anyMatch(validationReason ->
+                                                                                validationReason.contains("weekday")
+                                                                                                || validationReason
+                                                                                                                .contains("weekday digit"));
+                                                boolean pastDate = route.dispatchDate() != null
+                                                                && route.dispatchDate().isBefore(LocalDate.now());
                                                 saveFailure(
-                                                                databaseName,
-                                                                routeGroupId,
-                                                                route.routeId(),
-                                                                route.dispatchDate(),
-                                                                reason,
-                                                                uploadedBy,
-                                                                groupResultId,
-                                                                true,
-                                                                duplicate,
-                                                                false,
-                                                                check.dateGapWarning(),
-                                                                shuttle);
-
+                                                                databaseName, routeGroupId,
+                                                                route.routeId(), route.dispatchDate(),
+                                                                reason, uploadedBy, groupResultId,
+                                                                weekdayValid, check.duplicate(), pastDate,
+                                                                check.dateGapWarning(), shuttle);
                                                 results.add(new UploadRecordResult(
-                                                                databaseName,
-                                                                routeGroupId,
-                                                                route.routeId(),
-                                                                route.dispatchDate(),
-                                                                "FAILED",
-                                                                List.of(reason),
-                                                                shuttle));
-
+                                                                databaseName, routeGroupId,
+                                                                route.routeId(), route.dispatchDate(),
+                                                                "FAILED", List.of(reason), shuttle));
                                                 groupFailedCount++;
                                         }
-
                                         failedCount += groupFailedCount;
-
-                                        // This update is outside the rolled-back group transaction.
                                         sqlServerJdbcTemplate.update("""
                                                         UPDATE [TRUpload].[dbo].[UploadGroupResult]
                                                         SET Status = 'FAILED',
@@ -403,14 +331,51 @@ public class BillingUploadService {
                                                             SummaryMessage = ?
                                                         WHERE UploadGroupResultId = ?
                                                         """,
-                                                        routes.size(),
-                                                        groupFailedCount,
-                                                        "Group rejected due to a duplicate insert conflict.",
-                                                        groupResultId);
+                                                        routes.size(), groupFailedCount, reason, groupResultId);
+                                        activeGroupResultId = 0;
+                                        continue;
                                 }
 
+                                for (RouteCheck check : checks) {
+                                        RouteRecord route = check.route();
+                                        List<String> warnings = new ArrayList<>();
+                                        if (shuttle) {
+                                                warnings.add("Shuttle delivery (warehouse destination).");
+                                        }
+                                        if (check.dateGapWarning()) {
+                                                warnings.add(
+                                                                "Dispatch date is more than 3 days after "
+                                                                                + "the MMDD date in RouteGroupId.");
+                                                warningCount++;
+                                        }
+                                        results.add(new UploadRecordResult(
+                                                        databaseName, routeGroupId,
+                                                        route.routeId(), route.dispatchDate(),
+                                                        "RTR_GENERATED", List.copyOf(warnings), shuttle));
+                                }
+
+                                String groupStatus = shuttle
+                                                || checks.stream().anyMatch(RouteCheck::dateGapWarning)
+                                                                ? "RTR_GENERATED_WITH_WARNINGS"
+                                                                : "RTR_GENERATED";
+                                sqlServerJdbcTemplate.update("""
+                                                UPDATE [TRUpload].[dbo].[UploadGroupResult]
+                                                SET Status = ?,
+                                                    CompletedAt = SYSUTCDATETIME(),
+                                                    RouteCount = ?,
+                                                    UploadedRouteCount = 0,
+                                                    FailedRouteCount = 0,
+                                                    SummaryMessage = ?
+                                                WHERE UploadGroupResultId = ?
+                                                """,
+                                                groupStatus, routes.size(),
+                                                "RTR generated at " + outputFilePath
+                                                                + "; billing routes were not uploaded.",
+                                                groupResultId);
+                                generatedFiles.add(outputFilePath);
+                                generatedCount += routes.size();
+
                                 activeGroupResultId = 0;
-                                databaseInstanceService.invalidateRouteCache(databaseName);
                         }
                 } catch (RuntimeException unexpectedFailure) {
                         String failureSummary = "Unexpected upload processing error: "
@@ -437,11 +402,11 @@ public class BillingUploadService {
                                                 UPDATE [TRUpload].[dbo].[UploadBatch]
                                                 SET Status = 'FAILED',
                                                         CompletedAt = SYSUTCDATETIME(),
-                                                        UploadedCount = ?,
+                                                        UploadedCount = 0,
                                                         FailedCount = ?,
                                                         WarningCount = ?
                                                 WHERE UploadBatchId = ?
-                                                """, uploadedCount, failedCount, warningCount, batchId);
+                                                """, failedCount, warningCount, batchId);
                         } catch (RuntimeException statusFailure) {
                                 unexpectedFailure.addSuppressed(statusFailure);
                         }
@@ -453,9 +418,9 @@ public class BillingUploadService {
 
                 if (failedCount == 0) {
                         batchStatus = warningCount > 0
-                                        ? "COMPLETED_WITH_WARNINGS"
-                                        : "COMPLETED";
-                } else if (uploadedCount > 0) {
+                                        ? "RTR_GENERATED_WITH_WARNINGS"
+                                        : "RTR_GENERATED";
+                } else if (generatedCount > 0) {
                         batchStatus = "PARTIALLY_FAILED";
                 } else {
                         batchStatus = "FAILED";
@@ -465,17 +430,17 @@ public class BillingUploadService {
                                 UPDATE [TRUpload].[dbo].[UploadBatch]
                                 SET Status = ?,
                                     CompletedAt = SYSUTCDATETIME(),
-                                    UploadedCount = ?,
+                                    UploadedCount = 0,
                                     FailedCount = ?,
                                     WarningCount = ?
                                 WHERE UploadBatchId = ?
                                 """,
-                                batchStatus, uploadedCount, failedCount,
-                                warningCount, batchId);
+                                batchStatus, failedCount, warningCount, batchId);
 
                 return new UploadResponse(
-                                batchId, uploadedCount, failedCount,
-                                List.copyOf(shuttleWarnings), List.copyOf(results));
+                                batchId, generatedCount, failedCount,
+                                List.copyOf(shuttleWarnings), List.copyOf(generatedFiles),
+                                List.copyOf(results));
         }
 
         public List<UploadPreflightResponse> preflight(UploadRequest request) {
@@ -732,6 +697,13 @@ public class BillingUploadService {
                 return routeGroupId.toLowerCase(Locale.ROOT).endsWith("wave")
                                 ? routeGroupId
                                 : routeGroupId + "wave";
+        }
+
+        private String safeFailureMessage(RuntimeException failure) {
+                String message = failure.getMessage();
+                return message == null || message.isBlank()
+                                ? failure.getClass().getSimpleName()
+                                : message;
         }
 
         private boolean groupExistsInUploadedTable(String databaseName, String routeGroupId) {

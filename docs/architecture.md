@@ -13,6 +13,10 @@ flowchart LR
 
 The frontend owns presentation and client-side interaction. The backend owns API contracts, validation, business rules, and persistence integrations. The browser should communicate with the backend through `/api` endpoints rather than hard-coding environment-specific hostnames.
 
+## Billing upload phase 2
+
+The billing upload endpoint validates every route in a selected group before invoking `ie.exe` on the configured Windows host through WinRM. The tool writes an RTR file to its configured remote output directory. The backend records generated/failed outcomes in the existing upload audit tables, but does not insert into `UploadedBilling` or mutate source route groups. FTP delivery and later RTE generation are separate future steps.
+
 ## Repository layout
 
 - `frontend/src/`: React components, styles, and client-side services.

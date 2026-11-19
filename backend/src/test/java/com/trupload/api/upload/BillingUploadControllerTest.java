@@ -41,7 +41,7 @@ class BillingUploadControllerTest {
     void passesAdminIdentityAndRoleToUploadService() {
         Authentication authentication = authenticated("admin@example.com", "ROLE_ADMIN");
         UploadRequest request = new UploadRequest(List.of(new UploadSelection("CSTRAB", "0101T01")));
-        UploadResponse expected = new UploadResponse(UUID.randomUUID(), 1, 0, List.of(), List.of());
+        UploadResponse expected = new UploadResponse(UUID.randomUUID(), 1, 0, List.of(), List.of(), List.of());
         when(service.upload(request, "admin@example.com", "ADMIN")).thenReturn(expected);
 
         assertEquals(expected, controller.upload(request, authentication));
@@ -52,7 +52,7 @@ class BillingUploadControllerTest {
     void passesUserIdentityAndRoleToUploadService() {
         Authentication authentication = authenticated("user@example.com", "ROLE_USER");
         UploadRequest request = new UploadRequest(List.of(new UploadSelection("CSTRAB", "0101T01")));
-        UploadResponse expected = new UploadResponse(UUID.randomUUID(), 0, 1, List.of(), List.of());
+        UploadResponse expected = new UploadResponse(UUID.randomUUID(), 0, 1, List.of(), List.of(), List.of());
         when(accessService.hasGroupAccess("user@example.com", "CSTRAB", "0101T01")).thenReturn(true);
         when(service.upload(request, "user@example.com", "USER")).thenReturn(expected);
 

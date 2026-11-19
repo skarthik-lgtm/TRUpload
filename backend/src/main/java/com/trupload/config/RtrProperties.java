@@ -10,9 +10,14 @@ public class RtrProperties {
 
     private String remoteServer;
     private String remoteExecutablePath;
-    private String remoteStagingDirectory;
-    private String localOutputDirectory;
+    private String outputDirectory;
     private String fileExtension;
+    private String powerShellExecutable;
+    private String databaseUsername;
+    private String databasePassword;
+    private String remoteUsername;
+    private String remotePassword;
+    private String logDirectory = "D:/TRUpload/Logs/RTR";
     private int connectionTimeoutSeconds;
     private int executionTimeoutSeconds;
 
@@ -32,20 +37,20 @@ public class RtrProperties {
         this.remoteExecutablePath = remoteExecutablePath;
     }
 
-    public String getRemoteStagingDirectory() {
-        return remoteStagingDirectory;
+    public String getOutputDirectory() {
+        return outputDirectory;
     }
 
-    public void setRemoteStagingDirectory(String remoteStagingDirectory) {
-        this.remoteStagingDirectory = remoteStagingDirectory;
+    public void setOutputDirectory(String outputDirectory) {
+        this.outputDirectory = outputDirectory;
     }
 
-    public String getLocalOutputDirectory() {
-        return localOutputDirectory;
+    public String getPowerShellExecutable() {
+        return powerShellExecutable;
     }
 
-    public void setLocalOutputDirectory(String localOutputDirectory) {
-        this.localOutputDirectory = localOutputDirectory;
+    public void setPowerShellExecutable(String powerShellExecutable) {
+        this.powerShellExecutable = powerShellExecutable;
     }
 
     public String getFileExtension() {
@@ -54,6 +59,46 @@ public class RtrProperties {
 
     public void setFileExtension(String fileExtension) {
         this.fileExtension = fileExtension;
+    }
+
+    public String getDatabaseUsername() {
+        return databaseUsername;
+    }
+
+    public void setDatabaseUsername(String databaseUsername) {
+        this.databaseUsername = databaseUsername;
+    }
+
+    public String getDatabasePassword() {
+        return databasePassword;
+    }
+
+    public void setDatabasePassword(String databasePassword) {
+        this.databasePassword = databasePassword;
+    }
+
+    public String getRemoteUsername() {
+        return remoteUsername;
+    }
+
+    public void setRemoteUsername(String remoteUsername) {
+        this.remoteUsername = remoteUsername;
+    }
+
+    public String getRemotePassword() {
+        return remotePassword;
+    }
+
+    public void setRemotePassword(String remotePassword) {
+        this.remotePassword = remotePassword;
+    }
+
+    public String getLogDirectory() {
+        return logDirectory;
+    }
+
+    public void setLogDirectory(String logDirectory) {
+        this.logDirectory = logDirectory;
     }
 
     public int getConnectionTimeoutSeconds() {
